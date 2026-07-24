@@ -1,0 +1,76 @@
+{
+  "description": "vision.mjs 识图输出中的自然语言样式描述 → 项目 CSS 变量/组件属性的映射表",
+
+  "color_map": {
+    "蓝色": "var(--primary-color)",
+    "主操作色：蓝色": "var(--primary-color)",
+    "浅蓝": "var(--primary-1)",
+    "绿色": "var(--success-color)",
+    "成功状态：绿色": "var(--success-color)",
+    "红色": "var(--error-color)",
+    "错误状态：红色": "var(--error-color)",
+    "橙色": "var(--warning-color)",
+    "警告状态：橙色": "var(--warning-color)",
+    "浅灰色": "var(--bg-color)",
+    "页面背景：浅灰色": "var(--bg-color)",
+    "白色": "var(--component-background)",
+    "卡片/表格背景：白色": "var(--component-background)",
+    "深灰色": "var(--text-color)",
+    "主要文字：深灰色": "var(--text-color)",
+    "中灰色": "var(--text-color-secondary)",
+    "辅助文字：中灰色": "var(--text-color-secondary)",
+    "浅色": "var(--text-color-secondary)"
+  },
+
+  "typography_map": {
+    "页面标题": { "font-size": "16px", "font-weight": "600" },
+    "表格列头": { "font-size": "14px", "font-weight": "600" },
+    "表格内容": { "font-size": "14px", "font-weight": "400" },
+    "表单标签": { "font-size": "14px", "font-weight": "400" },
+    "正文": { "font-size": "14px", "font-weight": "400" },
+    "辅助文字": { "font-size": "12px", "font-weight": "400" }
+  },
+
+  "spacing_map": {
+    "16px": "16px",
+    "约16px": "16px",
+    "8px": "8px",
+    "约8px": "8px",
+    "24px": "24px",
+    "约24px": "24px",
+    "12px": "12px",
+    "约12px": "12px"
+  },
+
+  "component_map": {
+    "SearchCard": "SearchCard",
+    "TableCard": "TableCard",
+    "PageContainer": "PageContainer",
+    "a-input": "a-input",
+    "a-input-password": "a-input-password",
+    "a-input-number": "a-input-number",
+    "a-select": "a-select",
+    "a-radio-group": "a-radio-group",
+    "a-checkbox-group": "a-checkbox-group",
+    "a-textarea": "a-textarea",
+    "a-button": "a-button",
+    "a-tag": "a-tag",
+    "a-switch": "a-switch",
+    "a-modal": "a-modal",
+    "a-table": "a-table",
+    "a-pagination": "a-pagination"
+  },
+
+  "annotation_rule_map": {
+    "required": "required",
+    "必填": "required",
+    "必填项": "required",
+    "正整数": { "type": "integer", "min": 1 },
+    "数字": { "type": "number" },
+    "整数": { "type": "integer" },
+    "邮箱": { "type": "email" },
+    "手机号": { "pattern": "^1\\d{10}$" },
+    "仅支持数字": { "type": "integer" },
+    "不支持模糊搜索": { "searchType": "exact" }
+  }
+}
