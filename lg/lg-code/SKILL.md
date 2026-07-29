@@ -111,11 +111,22 @@ Every scene template must handle ALL four states:
 
 ### 6. Style Rules
 
-- All colors/spacing/fonts use `var(--token-name)` CSS variables
+**🔴 样式优先级（MANDATORY）：原子 CSS > scoped CSS**
+
+> 若项目使用了原子 CSS 库（UnoCSS / Tailwind / Windi），编码时必须遵循以下优先级：
+
+| 优先级 | 方式 | 适用范围 |
+|--------|------|---------|
+| 1️⃣ 原子类 | 直接写在模板 `class` 属性 | **所有常规样式**：`flex`、`items-center`、`w-*`、`h-*`、`p-*`、`m-*`、`text-*`、`bg-*`、`rounded-*`、`border-*`、`gap-*`、`overflow-hidden`、`text-ellipsis`、`whitespace-nowrap` 等 |
+| 2️⃣ `<style>` + BEM | `<style>` 块（是否 scoped 取决于项目规范） | **仅**以下例外场景：<br>• 动态 `class` 名（运行时拼接，静态扫描无法生成）<br>• 伪类选择器（`:last-child`、`:nth-child`）<br>• `rgba()` 半透明背景<br>• `@keyframes` 动画 |
+
+**自检规则**：生成代码后扫描 `<style scoped>` 中的每条规则，逐条问"这条能用原子类表达吗？"能 → 删除，移到模板 class。
+
+- All colors/spacing/fonts use `var(--token-name)` CSS variables when available
 - Precompiler matches project (SCSS for uniapp, Less for admin/web)
-- `<style scoped>` on all components
+- `<style>` 是否 `scoped` 取决于项目规范（由 `lg-init` 自动检测并写入开发规范文件，不要硬编码）
 - No global styles in component files
-- **All custom CSS class names MUST use BEM naming convention** (详见 `### 7. BEM CSS 命名规范`)
+- **`<style>` 中所有自定义类名 MUST use BEM naming convention**（详见 `### 7. BEM CSS 命名规范`）
 
 ### 7. BEM CSS 命名规范（MANDATORY）
 
@@ -403,17 +414,127 @@ Self-check:            ✅ All 10 rules passed
 | 10 | 无 sed 痕迹 | 代码中不含 `.replace(` 或 `sed` 副作用 | 列定义混入 `.replace(...)` |
 | 11 | 注释规范 | 脚本分区注释完整（列表8区块/弹窗5区块/详情6区块），defineExpose有JSDoc | 无区块注释、open()无JSDoc |
 | 12 | BEM CSS | 所有自定义 CSS 类名遵循 BEM（Block__Element--Modifier），无驼峰/单下划线/深层嵌套 | `.userCard` `.user_card` `.user-card__a__b__c` |
+| 13 | 表单校验去重 | `required: true` 与自定义 `validator` 拆分到不同规则项；validator 空值时 resolve 不 reject，避免同字段双提示 | `{ required: true, validator: (_, v) => !v ? reject() : resolve() }` 同对象中 required 和 validator 都 reject |
+| 14 | 校验清理 | 数据重置/重载后调用 `nextTick` + `clearValidate()`，无旧校验残留（弹窗打开、切换模板、动态 rules 变化等场景） | 切换禁用模板后仍显示"请输入价格" |
 
 **检查方法：**
 - 每生成一个文件，立即逐条比对
 - 发现问题立即修复，不积累
 - 全部通过后输出 `✅ Self-check passed` 才能继续下一个任务
 
+### 8. Form Validation Rules（Ant Design Vue 表单校验强制规则）
+
+**规则 8.1：`required` 与自定义 `validator` 必须拆分到不同规则对象中**
+
+当同一个字段既有 `required: true` 又有自定义 `validator` 时，两者各自独立触发校验。若字段为空，`required` 和 `validator`（内部也对空值 reject）会同时报错 → **同一个字段显示两条错误提示**。
+
+```js
+// ❌ 错误：同字段空值时两条提示同时出现
+rules = {
+  password: [{
+    required: true, message: '请输入密码',
+    validator: (_, v) => !v ? Promise.reject('请输入密码') : Promise.resolve(),
+  }],
+};
+
+// ✅ 正确：拆分为两条独立规则，validator 空值时 resolve
+rules = {
+  password: [
+    { required: true, message: '请输入密码' },
+    { validator: (_, v) => !v ? Promise.resolve() : customCheck(v) },
+  ],
+};
+```
+
+**规则 8.2：自定义 validator 首行必须处理空值**
+
+```js
+// ✅ 模式A：空值直接 resolve，由 required 规则处理空值提示
+validator: (_: any, v: string) => {
+  if (!v) return Promise.resolve();
+  // ... 业务校验逻辑
+}
+
+// ✅ 模式B：独立 validator（无 required），自行处理空值提示
+validator: (_: any, v: string) => {
+  if (!v) return Promise.reject('请输入XXX');
+  // ... 业务校验逻辑
+}
+
+// ❌ 错误：有 required 但 validator 也对空值 reject
+validator: (_: any, v: string) => {
+  if (!v) return Promise.reject('请输入XXX'); // 与 required 消息重复！
+  // ...
+}
+```
+
+**规则 8.3：`required: true` 必须有显式 `message`**
+
+```js
+// ❌ 错误：无 message，使用默认泛型提示
+{ required: true }
+
+// ✅ 正确：显式 message
+{ required: true, message: '请输入手机号' }
+```
+
+**规则 8.4：表单数据重置/重载时必须初始化校验状态（MANDATORY）**
+
+当表单数据重新加载（弹窗重新打开、切换数据源、动态 rules 变化等）时，必须调用 `clearValidate()` 清除上一次的校验状态。**这是项目中最常见的 Bug 来源之一，已多次出现。**
+
+```js
+// ✅ 正确：loadData 完成后清除校验
+async function handleSelectTemplate(item) {
+  selectedId.value = item.id;
+  await loadPriceData(item.id);
+  // 切换模板后初始化校验状态，避免旧校验残留（如禁用模板仍显示"请输入价格"）
+  await nextTick();
+  formRef.value?.clearValidate();
+}
+
+// ✅ 正确：弹窗 open() 中清除校验
+function open(data) {
+  if (data) {
+    formData.value = { ...data };
+  } else {
+    formData.value = { ...defaultForm };
+  }
+  // 清除上次关闭残留的校验状态
+  nextTick(() => formRef.value?.clearValidate());
+  visible.value = true;
+}
+
+// ✅ 正确：finally 块中清除（数据加载后统一处理）
+async function loadData() {
+  try {
+    // ... 加载数据
+  } catch (e) {
+    console.error(e);
+  } finally {
+    loading.value = false;
+    // 数据回填完成后清除可能残留的旧校验状态
+    await nextTick();
+    formRef.value?.clearValidate();
+  }
+}
+```
+
+**典型场景：**
+
+| 场景 | 触发时机 | 必须操作 |
+|------|---------|---------|
+| 弹窗重新打开 | `open()` 中 `formData` 重置后 | `nextTick` → `clearValidate()` |
+| 切换模板/数据源 | 新数据加载完成后 | `nextTick` → `clearValidate()` |
+| 动态 rules 从有→无 | `rules` 条件变化（如启用→禁用） | 条件变化后 `clearValidate()` |
+| 切换 Tab 后数据重载 | Tab 切换触发新数据加载 | 数据加载后 `clearValidate()` |
+
 ## 禁止事项
 
 - ❌ 禁止用 `bash heredoc` 批量生成 .vue 文件
 - ❌ 禁止用 `sed` 批量修改 .vue 文件内容
 - ❌ 禁止用 `;` 拼接多行 JavaScript 语句
+- ❌ 禁止在同一规则对象中同时使用 `required` 和自定义 `validator` 且都为空值报错（见规则 8.1）
+- ❌ **禁止能用原子类表达的样式写在 `<style scoped>` 中**（如 `display: flex` → `class="flex"`、`font-size: 28rpx` → `class="text-28rpx"`）
 - ✅ 必须用 Write/Edit 工具逐文件生成
 
 ---
@@ -594,8 +715,8 @@ Every component must handle these edge cases:
 ### Step 5: Style Rules (ENFORCED)
 
 ```
-✅ <style lang="less" scoped>    ← MUST have scoped
-✅ :deep(.ant-table) { ... }     ← For style penetration
+✅ <style lang="less">           ← 是否 scoped 遵循项目规范（由 lg-init 检测决定）
+✅ :deep(.ant-table) { ... }     ← For style penetration (scoped 模式时)
 ✅ BEM naming for all custom CSS classes  ← Block__Element--Modifier
 ❌ /deep/ or >>>                  ← Deprecated
 ❌ body { }, html { }, * { }     ← NO global styles in components

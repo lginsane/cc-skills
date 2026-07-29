@@ -74,6 +74,25 @@ description: 从 Swagger 文档生成前端 API 定义代码，遵循项目规�
    > 而 `DmsPlatformEnum [1,2,3,4]` 和 `PublishPlatformEnum [1,2,3,4]`，
    > desc 都含"平台" → **报告为重复**。
 
+3. **枚举名冲突值不匹配检测** — 扫描所有同名 TS enum，检查不同模块间是否存在同名但值语义不同的枚举：
+   ```
+   对每对同名枚举 (A, B)：
+     if A.values != B.values → 报告「同名异值」冲突
+     输出 A 和 B 的完整值映射
+   ```
+
+   > 示例：`TradeTypeEnum`（invoice 模块）vs `TradeTypeEnum`（power 模块）  
+   > 若前者值 `{0:品宣种草, 1:寄拍素材}` 后者值 `{1:充值消费, 2:退款}`  
+   > → **报告同名异值冲突**，建议重命名为 `InvoiceTradeTypeEnum` / `PowerTradeTypeEnum`
+
+4. **Params/Response 混用检测** — 扫描所有 Response/Vo/Detail 类型的字段：
+   ```
+   对每个 export interface XxxResponse / XxxVo / XxxDetail：
+     对每个字段：
+       if 字段类型名称以 "Params" 结尾 → 报告混用
+   ```
+   > 示例：`PlanBurstDetail.planBurstDetailReq: MerchantBurstAddParams` → **报告为混用**
+
 **输出格式：**
 
 ```
@@ -135,7 +154,16 @@ enums:  8 条目（含 1 组 aliases: DmsPlatformEnum → PublishPlatformEnum）
 3. 扫描 `src/api/` 现有模块，与 Swagger 对比（增量生成，不覆盖已有）
 4. 扫描 `src/enums/` 提取已有 TS 枚举（去重）；扫描 `src/constants/` 检查常量冲突
 5. 生成 **3 个文件**到模块目录（`api.ts` + `types.ts` + `enums.ts`）
-6. 检查跨模块引用：若枚举/类型被 >=2 模块引用，提示提升到 `src/enums/` / `src/types/`
+6. **🔴 枚举值交叉验证（MANDATORY）** — 对每个 schema 字段引用的枚举类型，必须执行以下检查：
+   - 从 Swagger schema `description` 中提取枚举值映射（如 `0-品宣种草 1-寄拍素材`）
+   - 若项目中已存在同名枚举（通过 import 路径匹配），对比已有枚举的值与 Swagger description 是否一致
+   - **不一致 → 禁止复用**：必须新建枚举（加模块前缀或覆盖旧值），不可静默复用
+   - 示例：`TradeTypeEnum` 已有 `RECHARGE_CONSUME=1`，但 Swagger description 为 `0-品宣种草`，值语义完全不同 → 报错并更新
+7. **响应类型交叉验证（MANDATORY）** — 生成后必须扫描所有 Response/Vo/Detail 类型字段：
+   - 检查是否有字段引用了 `*Params` 后缀的类型
+   - 如有 → 报告为错误，替换为对应的 Response/Vo 类型
+   - 如对应的 Response 类型不存在 → 新建，即使字段完全一样也不能复用 Params
+8. 检查跨模块引用：若枚举/类型被 >=2 模块引用，提示提升到 `src/enums/` / `src/types/`
 
 ## 生成文件结构
 
@@ -216,6 +244,21 @@ export interface XxxResponse {
 - 所有 ID 相关字段（字段名以 `Id` 结尾，如 `userId`、`dmsEmpId`、`accountId`）一律标注类型为 `string`
 - 注释中需标注 `（雪花算法，实际为字符串）` 说明原因
 
+**类型命名与引用规范（MANDATORY）：**
+
+| 后缀 | 语义 | 使用场景 |
+|------|------|----------|
+| `XxxParams` | 入参 | 仅用于 API 请求参数（如 `postRequest<XxxParams>`） |
+| `XxxResponse` | 出参 | 仅用于 API 响应体（如 `ResponseModel<XxxResponse>`） |
+| `XxxVo` / `XxxDetail` | 展示对象 | 内嵌于 Response 中的业务实体 |
+| `XxxItem` | 列表项 | 数组元素类型 |
+
+> 🔴 **禁止规则：**
+> - **Response / Vo / Detail 类型的字段禁止引用任何 `*Params` 类型**
+> - 入参（`XxxParams`）和出参（`XxxResponse`）必须使用不同的类型定义，即使字段完全一样
+> - 错误示例：`planBurstDetailReq: MerchantBurstAddParams`（Response 中引用 Params）
+> - 正确示例：`planBurstDetailReq: MerchantBurstDetailResponse`（Response 中引用 Response）
+
 ### enums.ts 模板
 
 ```ts
@@ -237,6 +280,29 @@ export enum XxxEnum {
 
 - 每个枚举值上方必须添加 `/** 中文含义 */` 注释
 - 注释内容来源：从后端接口文档 / Swagger `@ApiModelProperty.description` 推断各枚举值的业务含义
+
+**🔴 枚举复用校验规则（MANDATORY）：**
+
+> **绝不允许仅凭「同名」就复用已有枚举。** 必须对比值语义是否匹配。
+
+生成 enums.ts 时，对每个 Swagger schema 字段（如 `tradeType: integer # 交易类型 0-品宣种草 1-寄拍素材`）：
+
+1. 从 Swagger `description` 中解析枚举映射：`{0: '品宣种草', 1: '寄拍素材', ...}`
+2. 在已有代码中搜索同名 TS enum（按 `enum XxxEnum` 名称 + import 路径匹配）
+3. 若找到同名枚举，逐值对比：
+   ```
+   对每个 key：
+     Swagger description 的语义 vs 已有 enum key 的注释/desc
+     若语义明显不同（如 Swagger 说"品宣种草"但已有 enum 说"充值消费"）
+     → 🔴 冲突！不可复用
+   ```
+4. **冲突处理**：
+   - 若当前 Swagger 是权威来源 → **覆写**已有 enum 值（并同步更新 SmartEnum 常量）
+   - 若已有 enum 来自另一个 Swagger 模块且有不同语义 → **新建**带模块前缀的枚举（如 `DmsTradeTypeEnum`）
+
+> 示例：Swagger `tradeType: 0-品宣种草 1-寄拍素材 2-赠拍素材 3-邮寄运费`，
+> 已有 `TradeTypeEnum { RECHARGE_CONSUME=1, REFUND=2 }`，
+> 值集合 `{0,1,2,3}` ≠ `{1,2}` 且 key 语义完全不同 → **冲突，覆盖旧值**。
 
 ### constants/ 模板（SmartEnum）
 

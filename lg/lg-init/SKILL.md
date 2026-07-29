@@ -82,6 +82,109 @@ description: 初始化项目配置、墨刀连接、冒烟配置、组件映射�
  是否正确？"
 用户确认后继续。
 
+#### 1.5.1 原子 CSS 库检测（MANDATORY）
+
+项目类型确定后，检测项目是否使用了原子 CSS 库：
+
+| 检测方法 | 判断标准 |
+|---------|---------|
+| `package.json` dependencies | 搜索 `unocss`、`tailwindcss`、`windicss`、`@unocss` |
+| 配置文件 | 搜索根目录 `uno.config.*`、`tailwind.config.*`、`windi.config.*` |
+| CLAUDE.md | 搜索 `UnoCSS`、`Tailwind`、`Windi CSS`、`原子`、`atomic` |
+
+**检测到原子 CSS 库后：**
+
+1. 记录库类型（如 `unocss`）和配置文件路径
+2. 在所有后续生成的规范文件中**写入原子 CSS 优先规则**：
+
+   ```
+   ## 🔴 样式优先级（MANDATORY — 原子 CSS 优先）
+
+   本项目使用 {库名}（{配置文件}）。编写样式时必须遵循：
+
+   | 优先级 | 方式 | 适用场景 |
+   |--------|------|---------|
+   | 1️⃣ 原子类 | UnoCSS/Tailwind 原子类写在模板 class 属性 | 所有常规样式：flex、尺寸、间距、颜色、字体、边框、圆角 |
+   | 2️⃣ scoped | `<style scoped>` + BEM | **仅**以下场景：<br>• 动态 class 名（运行时拼接，静态扫描不到）<br>• 伪类选择器（`:last-child`、`:nth-child`）<br>• `rgba()` 透明度背景<br>• 复杂动画 `@keyframes` |
+
+   **禁止：** 能用原子类表达的样式写在 `<style scoped>` 中。
+   ```
+
+3. 如果 **未检测到** 原子 CSS 库 → 输出提示：
+   ```
+   ⚠️ 未检测到原子 CSS 库（UnoCSS / Tailwind / Windi）。
+   样式将全部使用 scoped CSS + BEM。
+   ```
+
+4. 检测结果示例输出：
+   ```
+   ✅ 检测到原子 CSS 库：UnoCSS（uno.config.ts）
+   📋 已将「原子 CSS 优先」规则写入所有规范文件
+   ```
+
+#### 1.5.2 Style 隔离方式检测（MANDATORY）
+
+不同项目的样式隔离策略不同，**不能硬编码**。lg-init 必须扫描现有 `.vue` 文件，根据实际代码决定生成什么规范。
+
+**检测方法：**
+
+扫描 `src/` 下所有 `.vue` 文件（采样 ≥20 个，不足则全量），统计 `<style>` 标签写法：
+
+```
+对每个 .vue 文件：
+  提取 <style ...> 标签的属性
+  分类：
+    scoped    → <style scoped> 或 <style lang="scss" scoped>
+    unscoped  → <style> 或 <style lang="less">（无 scoped 属性）
+    module    → <style module>
+    none      → 该文件没有 <style> 标签
+
+统计比例：
+  scoped_ratio    = scoped / (scoped + unscoped)
+  unscoped_ratio  = unscoped / (scoped + unscoped)
+```
+
+**判定规则：**
+
+| 条件 | 判定 | 对应的规范 |
+|------|------|-----------|
+| `scoped_ratio ≥ 0.8` | **scoped 隔离** | `<style lang="xxx" scoped>` + `:deep()` 穿透 |
+| `unscoped_ratio ≥ 0.8` | **BEM 根盒子隔离** | `<style lang="xxx">` + 唯一根元素 `.{page}-page` + BEM 命名自然隔离 |
+| `0.4 < ratio < 0.6` | **混合项目** | 取多数，输出 ⚠️ 警告，建议统一 |
+| `scoped = 0 && unscoped = 0` | **无样式文件** | 根据框架类型给默认值（uni-app → scoped，admin → 根盒子隔离） |
+
+**写入规范文件：**
+
+检测结果写入 `.claude/prompts/vue-development-standards.md`（admin 模式）或 `.claude/prompts/page-development.md`（D2C 模式）的样式章节：
+
+```
+## Style 隔离规范（lg-init 自动检测）
+
+检测结果：{count} 个 .vue 文件中，scoped 占比 {percent}%
+
+→ 采用 **{scoped 隔离 / BEM 根盒子隔离}**
+
+规则：
+  ✅ <style lang="{less/scss}" {scoped / }>  ← 根据检测结果决定是否有 scoped
+  {scoped 模式：✅ :deep() 穿透覆盖组件库样式}
+  {根盒子模式：✅ 唯一根元素盒子（如 .{page}-page）+ BEM 自然隔离}
+  ❌ {scoped 模式：不使用无 scoped 的 <style>}
+  ❌ {根盒子模式：不使用 <style scoped>，BEM 命名自然隔离不污染}
+```
+
+**检测结果示例输出：**
+
+```
+🔍 Style 隔离方式检测完成
+
+扫描 45 个 .vue 文件：
+  scoped:     43 (95.6%)  ← 采用
+  unscoped:    2 (4.4%)
+  
+→ 采用 scoped 隔离 + :deep() 穿透
+📋 已写入 .claude/prompts/page-development.md
+```
+
 ### 2. 冒烟配置 (`lg-smoke.json`)
 
 默认使用云效。不存在则直接创建完整模板，提示用户填写云效 ID。
@@ -217,7 +320,109 @@ description: 初始化项目配置、墨刀连接、冒烟配置、组件映射�
 
 - `.claude/prompts/vue-development-standards.md`
 - `.claude/prompts/constants-usage-standards.md`
-- `.claude/prompts/api-generator-from-swagger.md`
+- `.claude/prompts/api-doc-generator.md`
+
+### 5.1. 类型契约扫描与 API 文档生成（MANDATORY）
+
+> 在 `lg-init` 时扫描项目现有代码，**自动发现并固化类型复用模式**，写入 `api-doc-generator.md`，确保后续所有 `/lg-api-code` 调用自动遵循。
+
+#### 5.1.1 扫描基类池
+
+扫描 `src/types/` 下所有 `.d.ts` / `.ts` 文件，提取所有 `export interface` 和 `export type`：
+
+```
+对每个发现的基类：
+  记录：名称、字段列表（字段名 + 类型 + 是否可选）、文件路径
+```
+
+#### 5.1.2 扫描引用关系
+
+扫描 `src/api/` 下所有 `type.ts` / `types.ts`，提取所有 `extends` / `type X = Y` / `import type` 语句：
+
+```
+对每个 import from '@/types/request' 的模块：
+  记录：模块路径、引用了哪些基类、引用方式（extends / type alias / 直接作为泛型参数）
+
+统计：每个基类被几个模块引用
+```
+
+#### 5.1.3 验证契约有效性
+
+对被 ≥2 个模块引用的基类，与 Swagger 交叉验证：
+
+```
+对基类 BasePageParams:
+  字段: { pageNum: number, pageSize: number, searchCount?: boolean, sortItemList?: {...}[] }
+  
+  在 Swagger 中搜索包含这些字段的 requestBody schema：
+    AppDispatchRecordReq: { pageNum, pageSize, searchCount, sortItemList } → 字段完全匹配 ✅
+    XxxPageReq:           { pageNum, pageSize }                              → 字段子集匹配 ✅
+    YyyReq:               { page, size }                                     → 字段名不匹配 ⚠️
+  
+  验证结果：
+    ✅ 精确匹配 ≥2 个 Swagger schema → 确认为"通用契约"，写入规范，强制复用
+    ⚠️ 部分匹配 → 标记为"待确认"，生成带条件的复用规则（仅字段匹配时可复用）
+    ❌ 不匹配 → 不生成复用规则
+```
+
+#### 5.1.4 验证规则
+
+| 条件 | 结果 |
+|------|------|
+| 基类字段 ⊆ Swagger schema 字段（字段名、类型、可选性一致） | ✅ 可复用 |
+| 基类字段名相同但类型不同（如 `pageNum: number` vs `pageNum: string`） | ❌ 不可复用，报告类型冲突 |
+| 基类缺少 Swagger 定义的字段 | ⚠️ 可复用但需 extends 补充 |
+| 基类多了 Swagger 未定义的字段 | ⚠️ 可复用（多余字段可选/不影响） |
+
+#### 5.1.5 写入 api-doc-generator.md
+
+在 `api-doc-generator.md` 的 `types.ts 模板` 后追加自动生成的复用规则块：
+
+```markdown
+## 🔴 类型复用强制规则（自动生成于 lg-init，禁止手动删除）
+
+> 以下规则基于项目现有代码 + Swagger 交叉验证自动提取。生成 types.ts 时必须遵循。
+
+### 分页入参
+
+**基类：** `BasePageParams`（`@/types/request`）
+**已验证匹配 ≥2 个 Swagger schema：** AppDispatchRecordReq, …
+
+| 场景 | 写法 |
+|------|------|
+| 无额外字段 | `type XxxParams = BasePageParams` |
+| 有额外字段 | `interface XxxParams extends BasePageParams { ... }` |
+
+### 分页出参
+
+**基类：** `PageResponse<T>`（`@/types/request`）
+**已验证匹配 ≥2 个 Swagger schema：** PageResultAppDispatchRecordVo, …
+
+| 场景 | 写法 |
+|------|------|
+| 标准分页 | `type XxxResponse = PageResponse<XxxVo>` |
+| 有额外字段 | `interface XxxResponse extends PageResponse<XxxVo> { pages, emptyFlag?, statistics? }` |
+
+### 检查清单
+
+- [ ] 搜索 types.ts 中是否有 `pageNum: number` + `pageSize: number` → 改为继承 BasePageParams
+- [ ] 搜索 types.ts 中是否有 `list: T[]` + `total: number` → 改为继承 PageResponse<T>
+- [ ] import 添加 `import type { BasePageParams, PageResponse } from '@/types/request'`
+```
+
+> 如果有其他被 ≥2 模块引用的基类（如 `BaseResponse`、业务级共享 Vo），同样按此模板自动追加相应的复用规则块。
+
+#### 5.1.6 init 完成后输出
+
+```
+🔍 类型契约扫描完成
+
+发现 2 个通用基类：
+  BasePageParams   ← 3 个模块引用（complaint, task, message），✅ Swagger 验证通过
+  PageResponse<T>  ← 3 个模块引用（complaint, task, message），✅ Swagger 验证通过
+
+📋 已将复用规则写入 .claude/prompts/api-doc-generator.md
+```
 
 ### 5.5. D2C 开发规范（--mode d2c 时执行）
 
