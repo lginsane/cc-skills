@@ -1,11 +1,12 @@
 // extract.mjs — 按 manifest 自动遍历提取迭代图片
+// 兼容 wImage（图片型，下载URL）和 wRichText（Widget型，演示模式截图）
 import { chromium } from 'playwright';
 import { mkdirSync, writeFileSync, readFileSync, copyFileSync, existsSync, readdirSync } from 'fs';
 import { join, resolve } from 'path';
 import https from 'https';
 import http from 'http';
 
-const VIEWPORT = { width: 1440, height: 900 };
+const VIEWPORT = { width: 1920, height: 1080 };
 const TMP_BASE = '/tmp/modao-export';
 
 function loadConfig() {
@@ -60,22 +61,17 @@ async function autoLogin(page, password) {
 }
 
 async function clickSidebarNode(page, pageName) {
-  // Find matching text node in sidebar using Playwright locator
   const panel = page.locator('[class*="left-panel"]').first();
   const panelExists = await panel.count() > 0;
   if (!panelExists) return { success: false, error: 'no-sidebar' };
 
-  // Try to find an element containing the page name text
-  // Use Playwright's text matcher which handles React components properly
   const textLocator = panel.locator(`text="${pageName}"`).first();
   const textCount = await textLocator.count();
 
   if (textCount === 0) {
-    // Fuzzy: try partial match
     const allTexts = await panel.locator('*').allTextContents();
     const matches = allTexts.filter(t => t.trim().includes(pageName) || pageName.includes(t.trim()));
     if (matches.length === 0) return { success: false, error: 'no-match', name: pageName };
-    // Use first match that's close in length
     const best = matches.sort((a, b) =>
       Math.abs(a.trim().length - pageName.length) - Math.abs(b.trim().length - pageName.length)
     )[0].trim();
@@ -89,79 +85,198 @@ async function clickSidebarNode(page, pageName) {
   return { success: true, text: pageName };
 }
 
-async function waitForImage(page, timeoutMs = 15000) {
+async function waitForContent(page, timeoutMs = 15000) {
   const start = Date.now();
-  let best = { found: false, w: 0, h: 0 };
-
   while (Date.now() - start < timeoutMs) {
-    const cur = await page.evaluate(() => {
-      let best = { found: false, w: 0, h: 0 };
+    const content = await page.evaluate(() => {
       for (const img of document.querySelectorAll('img')) {
         const w = img.naturalWidth, h = img.naturalHeight;
-        if (w > 300 && h > 300) {
+        if (w > 500 && h > 500) {
           if (/loading/i.test(img.className || '') || /loading\.(gif|svg)/i.test(img.src)) continue;
-          const area = w * h;
-          if (area > best.w * best.h) {
-            best = { found: true, w, h, area };
+          return { type: 'image', width: w, height: h };
+        }
+      }
+      const canvases = document.querySelectorAll('[class*="rResCanvas"]');
+      for (const c of canvases) {
+        if (c.offsetWidth > 300 && c.offsetHeight > 300) {
+          const wrap = c.querySelector('[class*="StyledChildrenWrap"]');
+          if (wrap && wrap.children.length > 0) {
+            return { type: 'canvas', width: c.offsetWidth, height: c.offsetHeight };
           }
         }
       }
-      return best;
+      return null;
     });
-    if (cur.w > best.w) best = cur;
-
-    // If we found an image > 500x500 and been stable for 2s, return it
-    if (best.found && best.w > 500 && Date.now() - start > 3000) {
-      return best;
-    }
+    if (content && Date.now() - start > 3000) return content;
     await new Promise(r => setTimeout(r, 500));
   }
-  return best.found ? best : { found: false, error: 'timeout' };
+  return { type: 'timeout' };
 }
 
-async function extractCurrentPage(page, pageInfo, outputDir) {
-  const ts = Date.now();
-  const tmpDir = join(TMP_BASE, String(ts));
-  mkdirSync(tmpDir, { recursive: true });
+// 隐藏所有墨刀自身 UI（顶部工具栏、底部页数、欢迎横幅等）
+async function hideMoDaoChrome(page) {
+  try {
+    await page.addStyleTag({ content: `
+      [class*="StyledPreviewToolbar"] { display: none !important; }
+      [class*="StyledPaging"] { display: none !important; }
+      [class*="StyledSignUpPrompt"] { display: none !important; }
+      [class*="toggle-button"] { display: none !important; }
+    `});
+  } catch (_) {}
+}
 
-  const infos = await page.evaluate(() => {
-    const r = []; const seen = new Set();
-    const imgs = Array.from(document.querySelectorAll('img'))
-      .filter(img => {
-        const cls = (img.className || '').toLowerCase();
-        if (cls.includes('loading') || /loading\.(gif|svg)/i.test(img.src)) return false;
-        return img.naturalWidth > 300 && img.naturalHeight > 300;
-      })
-      .sort((a, b) => (b.naturalWidth * b.naturalHeight) - (a.naturalWidth * a.naturalHeight));
-
-    // Keep ALL unique images per page (cap 20), dedup by src
-    for (const img of imgs) {
-      if (r.length >= 20) break;
-      const src = img.src;
-      if (!src || src.startsWith('data:') || seen.has(src)) continue;
-      const area = img.naturalWidth * img.naturalHeight;
-      seen.add(src);
-      r.push({ src, width: img.naturalWidth, height: img.naturalHeight });
+// 进入演示模式 + 关闭左右面板
+async function enterCleanView(page) {
+  try {
+    // 点击 "演示"
+    const demoBtn = page.locator('.preview-switch-btn:not(.active)').first();
+    if (await demoBtn.count() > 0) {
+      await demoBtn.click();
+      await page.waitForTimeout(1500);
     }
-    return r;
+
+    // 关闭左右面板（JS click 跳过可见性检查）
+    await page.evaluate(() => {
+      document.querySelectorAll('.toggle-button').forEach(b => {
+        const cls = b.className || '';
+        if ((cls.includes('left') || cls.includes('right')) && cls.includes('pane-visible')) {
+          b.click();
+        }
+      });
+    });
+    // 等待 2 秒让顶部/底部工具栏自动隐藏
+    await page.waitForTimeout(2000);
+  } catch (_) {}
+}
+
+// 退出演示模式回到总览
+async function exitCleanView(page) {
+  try {
+    // 点击 "总览"
+    const overviewBtn = page.locator('.preview-switch-btn.active').first();
+    if (await overviewBtn.count() > 0) {
+      await overviewBtn.click();
+      await page.waitForTimeout(1000);
+    }
+  } catch (_) {}
+}
+
+// 核心提取逻辑
+async function extractCurrentPage(page, pageInfo, outputDir) {
+  const result = { pageIndex: pageInfo.index, pageName: pageInfo.name, items: [] };
+
+  // Step 1: 分析 rResCanvas 结构（在总览模式下）
+  const canvasAnalysis = await page.evaluate(() => {
+    const allCanvases = [];
+    const groupLists = document.querySelectorAll('.group-list');
+    groupLists.forEach(gl => {
+      const canvases = gl.querySelectorAll(':scope > [class*="rResCanvas"]');
+      canvases.forEach(c => {
+        const images = Array.from(c.querySelectorAll('img'))
+          .filter(img => {
+            const cls = (img.className || '').toLowerCase();
+            if (cls.includes('loading') || /loading\.(gif|svg)/i.test(img.src)) return false;
+            return true;
+          })
+          .map(img => ({
+            src: img.src,
+            naturalWidth: img.naturalWidth,
+            naturalHeight: img.naturalHeight,
+            displayWidth: img.offsetWidth,
+            displayHeight: img.offsetHeight,
+          }));
+        allCanvases.push({
+          offsetWidth: c.offsetWidth,
+          offsetHeight: c.offsetHeight,
+          images,
+        });
+      });
+    });
+    return allCanvases;
   });
 
-  const downloaded = [];
-  for (let i = 0; i < infos.length; i++) {
-    try {
-      const dims = `${infos[i].width}x${infos[i].height}`;
-      const safe = pageInfo.name.replace(/[/\\?%*:|"<>]/g, '-');
-      const fn = `${pageInfo.index}_${safe}_${dims}.png`;
-      const tmp = join(tmpDir, `img_${i + 1}.png`);
-      const proj = join(outputDir, fn);
-      await downloadFile(infos[i].src, tmp);
-      try { copyFileSync(tmp, proj); } catch (_) {}
-      downloaded.push({ fileName: fn, projectPath: proj, width: infos[i].width, height: infos[i].height });
-    } catch (e) {
-      downloaded.push({ error: e.message });
-    }
+  if (canvasAnalysis.length === 0) {
+    result.error = 'no-rResCanvas';
+    return result;
   }
-  return { pageIndex: pageInfo.index, pageName: pageInfo.name, downloaded, totalFound: infos.length };
+
+  const totalCanvases = canvasAnalysis.length;
+
+  // Step 2: 判断模式
+  const hasQualifyingImages = canvasAnalysis.some(c =>
+    c.images.some(img => img.displayWidth >= c.offsetWidth * 0.8 && img.src && !img.src.startsWith('data:'))
+  );
+
+  if (hasQualifyingImages) {
+    // --- 图片模式：直接下载 ---
+    for (let ci = 0; ci < totalCanvases; ci++) {
+      const canvas = canvasAnalysis[ci];
+      const qualifying = canvas.images.filter(
+        img => img.displayWidth >= canvas.offsetWidth * 0.8 && img.src && !img.src.startsWith('data:')
+      );
+      for (let ii = 0; ii < qualifying.length; ii++) {
+        try {
+          const img = qualifying[ii];
+          const dims = `${img.naturalWidth}x${img.naturalHeight}`;
+          const safe = pageInfo.name.replace(/[/\\?%*:|"<>"]/g, '-');
+          const canvasTag = totalCanvases > 1 ? `_c${ci + 1}` : '';
+          const imgTag = qualifying.length > 1 ? `_${ii + 1}` : '';
+          const fn = `${pageInfo.index}_${safe}${canvasTag}${imgTag}_${dims}.png`;
+          const proj = join(outputDir, fn);
+
+          const tmpDir = join(TMP_BASE, String(Date.now()));
+          mkdirSync(tmpDir, { recursive: true });
+          const tmp = join(tmpDir, `img_c${ci}_${ii}.png`);
+          await downloadFile(img.src, tmp);
+          try { copyFileSync(tmp, proj); } catch (_) {}
+
+          result.items.push({
+            fileName: fn, projectPath: proj,
+            width: img.naturalWidth, height: img.naturalHeight,
+            mode: 'image',
+          });
+        } catch (e) {
+          result.items.push({ error: e.message, mode: 'image' });
+        }
+      }
+    }
+  } else {
+    // --- Widget模式：演示模式截图 ---
+    await enterCleanView(page);
+
+    for (let ci = 0; ci < totalCanvases; ci++) {
+      try {
+        // 非首个 canvas，用方向键切换
+        if (ci > 0) {
+          await page.keyboard.press('ArrowRight');
+          // 等待 2 秒让工具栏自动隐藏
+          await page.waitForTimeout(2000);
+        }
+
+        const canvas = canvasAnalysis[ci];
+        const safe = pageInfo.name.replace(/[/\\?%*:|"<>"]/g, '-');
+        const canvasTag = totalCanvases > 1 ? `_c${ci + 1}` : '';
+        const dims = `${canvas.offsetWidth}x${canvas.offsetHeight}`;
+        const fn = `${pageInfo.index}_${safe}${canvasTag}_${dims}.png`;
+        const proj = join(outputDir, fn);
+
+        await page.screenshot({ path: proj, type: 'png' });
+
+        result.items.push({
+          fileName: fn, projectPath: proj,
+          width: canvas.offsetWidth, height: canvas.offsetHeight,
+          mode: 'screenshot',
+        });
+      } catch (e) {
+        result.items.push({ error: e.message, mode: 'screenshot' });
+      }
+    }
+
+    // 回到总览模式
+    await exitCleanView(page);
+  }
+
+  return result;
 }
 
 async function main() {
@@ -185,6 +300,7 @@ async function main() {
   await page.goto(config.modao_url, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await autoLogin(page, config.modao_password || '');
   await page.waitForTimeout(5000);
+  await hideMoDaoChrome(page);
 
   const results = [], failed = [], skipped = [];
   const total = manifest.pages.length;
@@ -193,7 +309,6 @@ async function main() {
     const pg = manifest.pages[i];
     console.error(`[${i + 1}/${total}] ${pg.name}`);
 
-    // Check if images already exist for this page
     const existingFiles = existsSync(versionDir)
       ? readdirSync(versionDir).filter(f => f.startsWith(`${pg.index}_`))
       : [];
@@ -213,17 +328,19 @@ async function main() {
     console.error(`  点击: ${clickR.text}`);
 
     await page.waitForTimeout(1500);
-    const img = await waitForImage(page);
-    if (!img.found) {
-      console.error(`  跳过: 图片加载超时`);
+    const content = await waitForContent(page);
+    if (content.type === 'timeout') {
+      console.error(`  跳过: 内容加载超时`);
       failed.push({ ...pg, error: '加载超时' });
       continue;
     }
-    console.error(`  加载: ${img.w}x${img.h}`);
+    console.error(`  加载: ${content.type} ${content.width}x${content.height}`);
 
     const r = await extractCurrentPage(page, pg, versionDir);
     results.push(r);
-    console.error(`  提取: ${r.totalFound} 张`);
+    const imgCount = r.items ? r.items.length : 0;
+    const modes = r.items ? [...new Set(r.items.map(it => it.mode))].join(',') : '';
+    console.error(`  提取: ${imgCount} 张 [${modes}]`);
   }
 
   console.log(JSON.stringify({
@@ -235,7 +352,7 @@ async function main() {
     failed: failed.length,
     results,
     failed,
-    versionDir
+    versionDir,
   }, null, 2));
   console.error(`\n完成: ${results.length}/${total}, 跳过: ${skipped.length}, 失败: ${failed.length}`);
   await browser.close();
