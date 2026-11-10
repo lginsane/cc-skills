@@ -1,0 +1,5 @@
+# macOS
+.DS_Store
+
+# 单测产物目录（测试运行时自动生成并清理）
+lg/lg-scripts/__fixtures__/out/
