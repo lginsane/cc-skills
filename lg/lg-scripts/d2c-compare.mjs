@@ -2,16 +2,9 @@
 // .claude/skills/lg-scripts/d2c-compare.mjs
 // 像素对比渲染截图 vs 设计稿，输出分级指标报告
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
-
-const args = process.argv.slice(2);
-if (args.length < 3) {
-  console.error('Usage: node d2c-compare.mjs <render-png> <design-png> <output-diff-png>');
-  process.exit(1);
-}
-
-const [renderPng, designPng, outputDiff] = args;
+import { pathToFileURL } from 'url';
 
 // 分级阈值
 const THRESHOLDS = {
@@ -22,7 +15,33 @@ const THRESHOLDS = {
   layoutMustMatch: true // 布局必须 100% 匹配
 };
 
+/**
+ * 纯函数：像素差异 → 匹配度 + 三档判定（L4 视觉门评分核心，可单测）
+ * 通过阈值：像素差异 < 3%（即 match% > 97%）
+ */
+export function computeScore(mismatchedPixels, totalPixels) {
+  const mismatchPercent = totalPixels > 0 ? (mismatchedPixels / totalPixels) * 100 : 0;
+  const matchPercent = 100 - mismatchPercent;
+  return {
+    mismatchPercent: Number(mismatchPercent.toFixed(2)),
+    matchPercent: Number(matchPercent.toFixed(2)),
+    passed: mismatchPercent < 3,
+  };
+}
+
 async function main() {
+  const args = process.argv.slice(2);
+  if (args.length < 3) {
+    console.error('Usage: node d2c-compare.mjs <render-png> <design-png> <output-diff-png>');
+    process.exit(1);
+  }
+  const [renderPng, designPng, outputDiff] = args;
+  if (!existsSync(resolve(designPng))) {
+    console.error(`❌ 缺少设计稿基准图 design.png: ${designPng}`);
+    console.error('   请在 MasterGo 打开目标稿 → 导出整页 PNG → 放入该路径后重跑 L4 门。');
+    process.exit(1);
+  }
+
   console.error(`对比: ${renderPng} vs ${designPng}`);
 
   try {
@@ -57,17 +76,13 @@ async function compareWithPixelmatch(pixelmatch, PNG, renderFile, designFile, di
   writeFileSync(resolve(diffFile), PNG.sync.write(diff));
 
   const totalPixels = width * height;
-  const mismatchPercent = ((mismatchedPixels / totalPixels) * 100).toFixed(2);
-  const matchPercent = (100 - parseFloat(mismatchPercent)).toFixed(2);
+  const { mismatchPercent, matchPercent, passed } = computeScore(mismatchedPixels, totalPixels);
 
   // 失败项汇总
   const failures = [];
-  if (parseFloat(mismatchPercent) >= 3) {
-    failures.push({ type: 'pixel_mismatch', value: parseFloat(mismatchPercent) + '%', threshold: '<3%' });
+  if (mismatchPercent >= 3) {
+    failures.push({ type: 'pixel_mismatch', value: mismatchPercent + '%', threshold: '<3%' });
   }
-
-  // 分级判定
-  const passed = parseFloat(mismatchPercent) < 3; // 97%+ 整体匹配度即通过
 
   const result = {
     passed,
@@ -75,29 +90,29 @@ async function compareWithPixelmatch(pixelmatch, PNG, renderFile, designFile, di
     pixelMatch: {
       totalPixels,
       mismatchedPixels,
-      mismatchPercent: parseFloat(mismatchPercent),
-      matchPercent: parseFloat(matchPercent)
+      mismatchPercent,
+      matchPercent,
     },
     thresholds: THRESHOLDS,
     detailChecks: {
-      pixelMatch: {
-        passed: parseFloat(mismatchPercent) < 3,
-        value: parseFloat(mismatchPercent) + '%',
-        threshold: '<3%'
-      },
-      layout: { passed: parseFloat(mismatchPercent) < 1, note: '整体像素差异 <1% 视为布局正确' },
-      color: { passed: parseFloat(mismatchPercent) < 5, note: '整体像素差异 <5% 视为颜色达标' },
-      spacing: { passed: parseFloat(mismatchPercent) < 5, note: '整体像素差异 <5% 视为间距达标' },
-      fontSize: { passed: parseFloat(mismatchPercent) < 5, note: '整体像素差异 <5% 视为字号达标' }
+      pixelMatch: { passed: mismatchPercent < 3, value: mismatchPercent + '%', threshold: '<3%' },
+      layout: { passed: mismatchPercent < 1, note: '整体像素差异 <1% 视为布局正确' },
+      color: { passed: mismatchPercent < 5, note: '整体像素差异 <5% 视为颜色达标' },
+      spacing: { passed: mismatchPercent < 5, note: '整体像素差异 <5% 视为间距达标' },
+      fontSize: { passed: mismatchPercent < 5, note: '整体像素差异 <5% 视为字号达标' },
     },
-    diffHeatmap: diffFile
+    diffHeatmap: diffFile,
   };
 
   console.log(JSON.stringify(result, null, 2));
   console.error(`✅ 对比完成: ${matchPercent}% 匹配 (${mismatchedPixels} 像素差异)`);
+  process.exit(result.passed ? 0 : 1);
 }
 
-main().catch(err => {
-  console.error(`❌ 对比失败: ${err.message}`);
-  process.exit(1);
-});
+const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isDirectRun) {
+  main().catch(err => {
+    console.error(`❌ 对比失败: ${err.message}`);
+    process.exit(1);
+  });
+}
