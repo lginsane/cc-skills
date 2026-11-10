@@ -1,0 +1,9 @@
+{
+  "structural": { "sectionMax": 8 },
+  "logical": { "enabled": true },
+  "similarity": { "autoThreshold": 0.7, "confirmThreshold": 0.35 },
+  "limits": { "maxPages": 50, "maxLayersPerPage": 20 },
+  "overwrite": "skip",
+  "featureGroups": { "enabled": true },
+  "codeplan": { "enabled": true }
+}
