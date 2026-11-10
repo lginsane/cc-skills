@@ -1,0 +1,41 @@
+{
+  "fileId": "200861125675636",
+  "layerId": "3:2946",
+  "designName": "服装产品图-设计引导",
+  "version": "1.0.0",
+  "overview": {
+    "sections": [
+      {"id": "3:3141", "name": "矩形 17655", "type": "LAYER", "x": 20, "y": 100, "width": 220, "height": 860},
+      {"id": "3:3263", "name": "upload-zone simple", "type": "FRAME", "x": 275, "y": 180, "width": 300, "height": 172},
+      {"id": "3:3333", "name": "组 19701", "type": "GROUP", "x": 608, "y": 100, "width": 812, "height": 746}
+    ],
+    "splitContainers": [
+      {"name": "组 19699", "type": "GROUP", "id": "3:2948", "x": 40, "y": 148, "width": 180, "height": 606}
+    ],
+    "rootMetadata": {
+      "width": 1440, "height": 862, "name": "服装产品图-设计引导", "type": "FRAME",
+      "styles": {
+        "paint_3:0821": {"value": ["#F2F6FD"]},
+        "paint_3:0938": {"value": ["#FFD8CC", {"url": "https://image-resource.mastergo.com/53038328564453/53038328564455/da1a28951668bf7f0bb881bd8cf2087d.png", "filters": ""}]}
+      }
+    },
+    "rootContainer": {"width": "1440px", "minHeight": "862px", "background": "#F2F6FD", "overflow": "hidden", "position": "relative"}
+  },
+  "sectionDsls": [
+    {"sectionIndex": 0, "section": {"id": "3:3263", "name": "upload-zone simple", "type": "FRAME"}, "dsl": {
+      "styles": {"font_3:1216": {"value": {"family": "PingFang SC", "size": 12, "lineHeight": "18", "weight": "500"}}, "paint_3:1218": {"value": ["#6B7A9A"]}},
+      "nodes": [
+        {"type": "TEXT", "id": "3:3264", "name": "点击上传图片或拖拽图片上传", "layoutStyle": {"width": 200, "height": 18, "relativeX": 0, "relativeY": 0}, "fill": "paint_3:1218", "_color": "#6B7A9A", "text": [{"text": "点击上传图片或拖拽图片上传", "font": "font_3:1216"}], "textAlign": "center", "textMode": "single-line"}
+      ]
+    }},
+    {"sectionIndex": 1, "section": {"id": "3:3333", "name": "组 19701", "type": "GROUP"}, "dsl": {
+      "styles": {
+        "paint_3:0938": {"value": ["#FFD8CC", {"url": "https://image-resource.mastergo.com/53038328564453/53038328564455/da1a28951668bf7f0bb881bd8cf2087d.png", "filters": ""}]}
+      },
+      "nodes": [
+        {"type": "IMAGE", "id": "3:3334", "name": "生成前", "layoutStyle": {"width": 200, "height": 200, "relativeX": 0, "relativeY": 0}, "fill": "paint_3:0938"},
+        {"type": "TEXT", "id": "3:3335", "name": "生成前", "layoutStyle": {"width": 60, "height": 24, "relativeX": 220, "relativeY": 0}, "fill": "paint_3:1218", "_color": "#FFFFFF", "text": [{"text": "生成前", "font": "font_3:1216"}], "textAlign": "center", "textMode": "single-line"}
+      ]
+    }}
+  ]
+}

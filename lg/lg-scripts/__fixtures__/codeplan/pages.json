@@ -1,0 +1,40 @@
+{
+  "pages": [
+    {
+      "pageId": "simple-detail",
+      "pageName": "基础详情",
+      "pageDir": "basic/detail",
+      "feature": "basic",
+      "totalSections": 4,
+      "zones": [{ "id": "z1", "name": "内容", "kind": "content", "sections": [0, 1, 2, 3] }],
+      "overlays": [],
+      "repeatables": [],
+      "outputs": [{ "outputType": "detail-drawer" }]
+    },
+    {
+      "pageId": "task-list",
+      "pageName": "商单管理",
+      "pageDir": "task-manage/task-list",
+      "feature": "商单管理",
+      "totalSections": 22,
+      "zones": [
+        { "id": "z1", "name": "侧边容器", "kind": "shell", "sections": [0] },
+        { "id": "z2", "name": "主内容容器", "kind": "content", "sections": [1, 2, 3, 4, 5] }
+      ],
+      "overlays": [{ "id": "o1", "name": "新增商单弹窗", "sectionIndex": 6 }],
+      "repeatables": [{ "id": "r1", "name": "卡片", "count": 3 }],
+      "outputs": [{ "outputType": "list-page" }, { "outputType": "form-modal" }]
+    },
+    {
+      "pageId": "poll-only",
+      "pageName": "轮询任务",
+      "pageDir": "task/poll",
+      "feature": "poll",
+      "totalSections": 5,
+      "zones": [{ "id": "z1", "name": "内容", "kind": "content", "sections": [0, 1, 2, 3, 4] }],
+      "overlays": [],
+      "repeatables": [],
+      "outputs": [{ "outputType": "detail-page" }]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "colorBgLayout": "#f2f6fd",
+  "colorTextBase": "#333",
+  "colorTextSecondary": "#666",
+  "colorTextTertiary": "#999",
+  "colorPrimary": "#1890ff",
+  "borderRadiusCard": 24,
+  "fontSize": 14,
+  "typeAreaWidth": 1440
+}

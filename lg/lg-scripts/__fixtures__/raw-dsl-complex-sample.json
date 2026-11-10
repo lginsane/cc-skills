@@ -1,0 +1,99 @@
+{
+  "fileId": "200861125675636",
+  "layerId": "3:1000",
+  "designName": "商品管理-商品列表",
+  "version": "1.5.0",
+  "overview": {
+    "sections": [
+      {"id": "3:1000", "name": "侧边栏", "type": "FRAME", "x": 0, "y": 0, "width": 220, "height": 800},
+      {"id": "3:2000", "name": "商品卡片列表", "type": "FRAME", "x": 230, "y": 0, "width": 900, "height": 820},
+      {"id": "3:2001", "name": "商品卡片", "type": "GROUP", "x": 240, "y": 10, "width": 280, "height": 240},
+      {"id": "3:2002", "name": "商品卡片", "type": "GROUP", "x": 540, "y": 10, "width": 280, "height": 240},
+      {"id": "3:2003", "name": "商品卡片", "type": "GROUP", "x": 240, "y": 270, "width": 280, "height": 240},
+      {"id": "3:3000", "name": "新增商品弹窗", "type": "FRAME", "x": 360, "y": 120, "width": 420, "height": 360},
+      {"id": "3:4000", "name": "滚动条", "type": "FRAME", "x": 1130, "y": 0, "width": 16, "height": 820},
+      {"id": "3:5000", "name": "矩形 1234", "type": "LAYER", "x": 0, "y": 0, "width": 1440, "height": 820}
+    ],
+    "splitContainers": [
+      {"name": "侧边容器", "type": "GROUP", "id": "3:9000", "x": 0, "y": 0, "width": 220, "height": 800},
+      {"name": "主内容容器", "type": "GROUP", "id": "3:9001", "x": 230, "y": 0, "width": 900, "height": 820}
+    ],
+    "rootMetadata": {
+      "width": 1440, "height": 820, "name": "商品管理-商品列表", "type": "FRAME",
+      "styles": {
+        "paint_url_logo":   {"value": ["#FFFFFF", {"url": "https://img.example.com/logo-brand.png", "filters": ""}]},
+        "paint_url_avatar": {"value": [{"url": "https://img.example.com/avatar-zhang.png", "filters": ""}]},
+        "paint_url_cover":  {"value": [{"url": "https://img.example.com/goods-cover.png", "filters": ""}]},
+        "paint_url_modal":  {"value": [{"url": "https://img.example.com/modal-illustration.png", "filters": ""}]},
+        "paint_url_bg1":    {"value": [{"url": "https://img.example.com/bg-left.png", "filters": ""}]},
+        "paint_url_bg2":    {"value": [{"url": "https://img.example.com/bg-right.png", "filters": ""}]},
+        "paint_text_main":  {"value": ["#1A1A1A"]},
+        "paint_text_sub":   {"value": ["#666666"]},
+        "font_main":        {"value": {"family": "PingFang SC", "size": 14, "lineHeight": "22", "weight": "400"}}
+      }
+    },
+    "rootContainer": {"width": "1440px", "minHeight": "820px", "background": "#F4F6FB", "overflow": "hidden", "position": "relative"}
+  },
+  "sectionDsls": [
+    {"sectionIndex": 0, "section": {"id": "3:1000", "name": "侧边栏", "type": "FRAME"}, "nodeCount": 5, "svgNodeCount": 0, "structureHash": "side_abc", "dsl": {
+      "styles": {"paint_url_logo": {"value": ["#FFFFFF", {"url": "https://img.example.com/logo-brand.png", "filters": ""}]}, "paint_url_avatar": {"value": [{"url": "https://img.example.com/avatar-zhang.png", "filters": ""}]}, "paint_url_bg1": {"value": [{"url": "https://img.example.com/bg-left.png", "filters": ""}]}, "paint_text_main": {"value": ["#1A1A1A"]}, "font_main": {"value": {"family": "PingFang SC", "size": 14, "lineHeight": "22", "weight": "400"}}},
+      "nodes": [
+        {"type": "IMAGE", "id": "3:1001", "name": "logo 品牌", "layoutStyle": {"width": 120, "height": 32, "relativeX": 50, "relativeY": 40}, "fill": "paint_url_logo"},
+        {"type": "IMAGE", "id": "3:1012", "name": "logo 品牌(小)", "layoutStyle": {"width": 24, "height": 24, "relativeX": 24, "relativeY": 90}, "fill": "paint_url_logo"},
+        {"type": "TEXT", "id": "3:1002", "name": "侧边栏标题", "layoutStyle": {"width": 120, "height": 22, "relativeX": 50, "relativeY": 80}, "fill": "paint_text_main", "text": [{"text": "商品管理", "font": "font_main"}], "textAlign": "left"},
+        {"type": "GROUP", "id": "3:1003", "name": "用户区", "layoutStyle": {"width": 200, "height": 80, "relativeX": 10, "relativeY": 700}, "children": [
+          {"type": "IMAGE", "id": "3:1010", "name": "用户 头像", "layoutStyle": {"width": 40, "height": 40, "relativeX": 20, "relativeY": 20}, "fill": "paint_url_avatar"},
+          {"type": "TEXT", "id": "3:1011", "name": "用户名", "layoutStyle": {"width": 100, "height": 22, "relativeX": 80, "relativeY": 28}, "fill": "paint_text_main", "text": [{"text": "张三", "font": "font_main"}], "textAlign": "left"}
+        ]},
+        {"type": "IMAGE", "id": "3:1020", "name": "背景 装饰", "layoutStyle": {"width": 220, "height": 200, "relativeX": 0, "relativeY": 480}, "fill": "paint_url_bg1"}
+      ]
+    }},
+    {"sectionIndex": 1, "section": {"id": "3:2000", "name": "商品卡片列表", "type": "FRAME"}, "nodeCount": 1, "svgNodeCount": 0, "structureHash": "list_head", "dsl": {
+      "styles": {"paint_text_sub": {"value": ["#666666"]}, "font_main": {"value": {"family": "PingFang SC", "size": 14, "lineHeight": "22", "weight": "400"}}},
+      "nodes": [
+        {"type": "TEXT", "id": "3:2000t", "name": "列表标题", "layoutStyle": {"width": 120, "height": 24, "relativeX": 10, "relativeY": 10}, "fill": "paint_text_sub", "text": [{"text": "商品列表", "font": "font_main"}], "textAlign": "left"},
+        {"type": "IMAGE", "id": "3:2010", "name": "背景-装饰", "layoutStyle": {"width": 60, "height": 60, "relativeX": 800, "relativeY": 700}, "fill": "paint_url_bg2"}
+      ]
+    }},
+    {"sectionIndex": 2, "section": {"id": "3:2001", "name": "商品卡片", "type": "GROUP"}, "nodeCount": 3, "svgNodeCount": 0, "structureHash": "card_1", "dsl": {
+      "styles": {"paint_url_cover": {"value": [{"url": "https://img.example.com/goods-cover.png", "filters": ""}]}, "paint_text_main": {"value": ["#1A1A1A"]}, "paint_text_sub": {"value": ["#666666"]}, "font_main": {"value": {"family": "PingFang SC", "size": 14, "lineHeight": "22", "weight": "400"}}},
+      "nodes": [
+        {"type": "IMAGE", "id": "3:2101", "name": "矩形 88", "layoutStyle": {"width": 120, "height": 120, "relativeX": 20, "relativeY": 20}, "fill": "paint_url_cover"},
+        {"type": "TEXT", "id": "3:2102", "name": "商品名", "layoutStyle": {"width": 140, "height": 22, "relativeX": 160, "relativeY": 20}, "fill": "paint_text_main", "text": [{"text": "商品猫粮旗舰款", "font": "font_main"}], "textAlign": "left"},
+        {"type": "TEXT", "id": "3:2103", "name": "价格", "layoutStyle": {"width": 100, "height": 22, "relativeX": 160, "relativeY": 60}, "fill": "paint_text_sub", "text": [{"text": "¥99", "font": "font_main"}], "textAlign": "left"}
+      ]
+    }},
+    {"sectionIndex": 3, "section": {"id": "3:2002", "name": "商品卡片", "type": "GROUP"}, "nodeCount": 3, "svgNodeCount": 0, "structureHash": "card_1", "dsl": {
+      "styles": {"paint_url_cover": {"value": [{"url": "https://img.example.com/goods-cover.png", "filters": ""}]}, "paint_text_main": {"value": ["#1A1A1A"]}, "paint_text_sub": {"value": ["#666666"]}, "font_main": {"value": {"family": "PingFang SC", "size": 14, "lineHeight": "22", "weight": "400"}}},
+      "nodes": [
+        {"type": "IMAGE", "id": "3:2201", "name": "矩形 88", "layoutStyle": {"width": 120, "height": 120, "relativeX": 20, "relativeY": 20}, "fill": "paint_url_cover"},
+        {"type": "TEXT", "id": "3:2202", "name": "商品名", "layoutStyle": {"width": 140, "height": 22, "relativeX": 160, "relativeY": 22}, "fill": "paint_text_main", "text": [{"text": "商品猫粮旗舰款", "font": "font_main"}], "textAlign": "left"},
+        {"type": "TEXT", "id": "3:2203", "name": "价格", "layoutStyle": {"width": 100, "height": 22, "relativeX": 160, "relativeY": 62}, "fill": "paint_text_sub", "text": [{"text": "¥99", "font": "font_main"}], "textAlign": "left"}
+      ]
+    }},
+    {"sectionIndex": 4, "section": {"id": "3:2003", "name": "商品卡片", "type": "GROUP"}, "nodeCount": 3, "svgNodeCount": 0, "structureHash": "card_2", "dsl": {
+      "styles": {"paint_url_cover": {"value": [{"url": "https://img.example.com/goods-cover.png", "filters": ""}]}, "paint_text_main": {"value": ["#1A1A1A"]}, "paint_text_sub": {"value": ["#666666"]}, "font_main": {"value": {"family": "PingFang SC", "size": 14, "lineHeight": "22", "weight": "400"}}},
+      "nodes": [
+        {"type": "IMAGE", "id": "3:2301", "name": "矩形 88", "layoutStyle": {"width": 120, "height": 120, "relativeX": 20, "relativeY": 20}, "fill": "paint_url_cover"},
+        {"type": "TEXT", "id": "3:2302", "name": "商品名", "layoutStyle": {"width": 140, "height": 22, "relativeX": 160, "relativeY": 20}, "fill": "paint_text_main", "text": [{"text": "商品猫粮旗舰款", "font": "font_main"}], "textAlign": "left"},
+        {"type": "TEXT", "id": "3:2303", "name": "价格", "layoutStyle": {"width": 100, "height": 22, "relativeX": 160, "relativeY": 60}, "fill": "paint_text_sub", "text": [{"text": "¥99", "font": "font_main"}], "textAlign": "left"}
+      ]
+    }},
+    {"sectionIndex": 5, "section": {"id": "3:3000", "name": "新增商品弹窗", "type": "FRAME"}, "nodeCount": 4, "svgNodeCount": 0, "structureHash": "modal_1", "dsl": {
+      "styles": {"paint_url_modal": {"value": [{"url": "https://img.example.com/modal-illustration.png", "filters": ""}]}, "paint_text_main": {"value": ["#1A1A1A"]}, "font_main": {"value": {"family": "PingFang SC", "size": 14, "lineHeight": "22", "weight": "400"}}},
+      "nodes": [
+        {"type": "FRAME", "id": "3:3010", "name": "商品名称input", "layoutStyle": {"width": 340, "height": 32, "relativeX": 40, "relativeY": 80}, "fill": "paint_text_main"},
+        {"type": "FRAME", "id": "3:3011", "name": "商品价格input", "layoutStyle": {"width": 340, "height": 32, "relativeX": 40, "relativeY": 130}, "fill": "paint_text_main"},
+        {"type": "TEXT", "id": "3:3012", "name": "弹窗标题", "layoutStyle": {"width": 120, "height": 24, "relativeX": 40, "relativeY": 30}, "fill": "paint_text_main", "text": [{"text": "新增商品", "font": "font_main"}], "textAlign": "left"},
+        {"type": "IMAGE", "id": "3:3013", "name": "弹窗 配图", "layoutStyle": {"width": 200, "height": 120, "relativeX": 110, "relativeY": 200}, "fill": "paint_url_modal"}
+      ]
+    }},
+    {"sectionIndex": 6, "section": {"id": "3:4000", "name": "滚动条", "type": "FRAME"}, "nodeCount": 0, "svgNodeCount": 0, "structureHash": "", "dsl": {"styles": {}, "nodes": []}},
+    {"sectionIndex": 7, "section": {"id": "3:5000", "name": "矩形 1234", "type": "LAYER"}, "nodeCount": 1, "svgNodeCount": 0, "structureHash": "bg_deco", "dsl": {
+      "styles": {"paint_url_bg1": {"value": [{"url": "https://img.example.com/bg-left.png", "filters": ""}]}},
+      "nodes": [
+        {"type": "IMAGE", "id": "3:5001", "name": "矩形 1234", "layoutStyle": {"width": 1440, "height": 820, "relativeX": 0, "relativeY": 0}, "fill": "paint_url_bg1"}
+      ]
+    }}
+  ]
+}
