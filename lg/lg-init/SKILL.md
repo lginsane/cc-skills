@@ -11,7 +11,7 @@ description: 初始化项目配置、墨刀连接、冒烟配置、组件映射�
 
 ```
 /lg-init                  → 交互式提问选择类型
-/lg-init --mode admin     → 管理后台（3份规范：vue-development-standards.md + constants-usage-standards.md + api-generator-from-swagger.md）
+/lg-init --mode admin     → 管理后台（5份规范：vue-development-standards.md + constants-usage-standards.md + api-doc-generator.md + commit-standard.md + version-standard.md，后两份按 docs/ 检测生成，见 5.2）
 /lg-init --mode d2c       → D2C（3份文件：page-development.md + d2c-restoration.md + vision-style-map.d2c.json）
 /lg-init update           → 增量更新，保持现有行为
 ```
@@ -59,7 +59,9 @@ description: 初始化项目配置、墨刀连接、冒烟配置、组件映射�
   "catalog_dir": "./.lg-docs/catalog/",
   "vision_dir": "./.lg-docs/vision/",
   "analysis_dir": "./.lg-docs/analysis/",
-  "smoke_cases_dir": "./.lg-docs/smoke/"
+  "smoke_cases_dir": "./.lg-docs/smoke/",
+  "dsl_dir": "./.lg-docs/dsl/",
+  "img_dir": "./src/assets/"
 }
 ```
 
@@ -302,7 +304,9 @@ description: 初始化项目配置、墨刀连接、冒烟配置、组件映射�
 
 检查项目 `CLAUDE.md`，不存在则创建，存在则在 update 模式下增量更新。
 
-**内容（纯项目技术文档，不含 lg-\* skill 使用方法）：**
+> ⚠️ **为什么必须有关联章节**：`CLAUDE.md` 是 harness 每个会话自动注入的唯一文件；`.claude/prompts/*.md` 和 `.claude/config/lg-components-map.json` **不会自动加载**，此前只有 `/lg-code` 的 "Load Context First" 强制读取它们。导致用户用普通文案直接描述开发任务（不走 /lg-code）时，agent 看不到任何规范入口，开发规范被完全绕过。本节把「规范指针 + 编码前必读义务」写进 CLAUDE.md，使规范对**所有入口**（含纯文案指令）生效。
+
+**内容（项目技术文档 + 开发规范关联章节；不含 lg-\* 命令使用教程，但必须含规范文件指针）：**
 
 - 项目概述、技术栈、开发命令
 - 路径别名 `/@/` → `src/`
@@ -311,16 +315,63 @@ description: 初始化项目配置、墨刀连接、冒烟配置、组件映射�
 - 枚举系统（smart-enums-plugin）
 - 权限系统（v-privilege）
 - 路由（hash mode + 动态注册）
+- **开发规范关联章节（MANDATORY，见 4.1，缺失即本步骤未完成）**
 
-**update 模式：** 重新扫描 `src/`，更新 API 模块列表和组件列表，保留手动添加的章节。
+#### 4.1 开发规范关联章节（MANDATORY — 生成 CLAUDE.md 时必做）
+
+在 CLAUDE.md 中生成如下章节，用 AUTO 标记包裹以便 update 重写：
+
+````markdown
+<!-- AUTO_START:dev-standards-pointers -->
+## 📐 开发规范（MANDATORY — 编码前必读）
+
+以下规范文件由 `/lg-init` 维护，是本项目默认开发约定。**任何前端编码任务——无论是否显式调用 `/lg-code`——动手写代码前必须先 Read 下表对应文件**；`/lg-code` 不是规范的唯一注入入口。
+
+| 触发场景 | 必读文件 | 内容 |
+|---------|---------|------|
+| 编写/修改任何 `.vue` 页面或组件 | `.claude/prompts/vue-development-standards.md` | 目录/组件/样式/校验/命名规范 |
+| 涉及业务代码中的状态值、魔法数字/字符串 | `.claude/prompts/constants-usage-standards.md` | 枚举常量注册/引用规范 |
+| 新增或修改 API 模块 / types | `.claude/prompts/api-doc-generator.md` | API 模块结构与类型复用规范 |
+| 新建任何 UI 元素前（先复用后新建） | `.claude/config/lg-components-map.json` | 已有组件清单 |
+| 生成 commit message / 分支 / 发版操作 | `.claude/prompts/commit-standard.md`、`.claude/prompts/version-standard.md` | 提交/版本规范（docs/ 同步版） |
+
+**禁止：** 未读上述规范就直接产出代码；禁止绕过 `lg-components-map.json` 重复造已有组件。
+<!-- AUTO_END:dev-standards-pointers -->
+````
+
+**生成规则：**
+
+0. **生成时机**：本区块初版随 CLAUDE.md 一起创建；因步骤 5/5.2/5.5 会在其后才生成规范文件，**在流程末尾（步骤 7 输出清单前）必须复核一次**——重新扫描 `.claude/prompts/` + `.claude/config/`，把新生成的规范文件补进表格、删掉未生成的行。update 模式同样执行此复核。
+1. **按实际存在的文件动态列行**——扫描 `.claude/prompts/` 与 `.claude/config/`，表中**只保留真实存在的文件行**；不存在的规范（如项目无 `src/constants/` 未生成 constants 规范、docs/ 无提交规范、d2c 模式）对应行**删除**，不得引用不存在的路径。
+2. **D2C 模式**（`--mode d2c`）下表替换为：
+
+   | 触发场景 | 必读文件 | 内容 |
+   |---------|---------|------|
+   | 编写/修改任何页面或组件 | `.claude/prompts/page-development.md` | 页面开发规范（layout/技术栈/样式） |
+   | 设计稿还原 / DSL→代码任务 | `.claude/prompts/d2c-restoration.md` | 还原专用规则 |
+   | 样式 token 映射 | `.claude/config/vision-style-map.d2c.json` | 样式映射表 |
+   | 涉及状态值/魔法值（若有） | `.claude/prompts/constants-usage-standards.md` | 常量规范 |
+   | 新建任何 UI 元素前 | `.claude/config/lg-components-map.json` | 已有组件清单 |
+
+3. 若 1.5.1 检测到原子 CSS 库 → 表格下追加一行说明：「样式写法以规范文件中的『原子 CSS 优先』规则为准」。
+4. 若某规范文件本应存在但缺失（如 update 时发现 prompts 被误删）→ 输出 `⚠️ CLAUDE.md 引用了 {file}，但该文件不存在，请重跑 /lg-init` 并保留该行（提醒修复），不静默删除。
+
+**update 模式：** 重新扫描 `src/`，更新 API 模块列表和组件列表；同时**重新扫描 `.claude/prompts/` + `.claude/config/` 重建 4.1 表格**（在 AUTO 标记内整体重写该区块，标记外手动添加的章节保留）。若旧版 CLAUDE.md 无此区块（历史生成文件），直接插入后视为 update 的正常产出并输出「已补充开发规范关联章节」。
 
 ### 5. 开发规范
+
+> 本节及 5.1/5.2/5.5 产出的所有 prompts 文件，最终都会被 4.1「开发规范关联章节」按实际存在情况登记进 CLAUDE.md——确保纯文案开发指令也强制读规范，不依赖 /lg-code 入口。
 
 确认以下文件存在：
 
 - `.claude/prompts/vue-development-standards.md`
-- `.claude/prompts/constants-usage-standards.md`
 - `.claude/prompts/api-doc-generator.md`
+
+> **constants-usage-standards.md 按目录检测创建（与 admin/d2c 模式无关）：**
+> - 检测项目是否存在 `src/constants/` 目录
+> - 存在 → 生成 `.claude/prompts/constants-usage-standards.md`（SmartEnum 常量注册/引用规范）
+> - 不存在 → 不生成（项目未使用常量系统）
+> - admin 与 d2c 模式均可触发，d2c 项目的 `d2c-init.mjs` 同样执行此检测
 
 ### 5.1. 类型契约扫描与 API 文档生成（MANDATORY）
 
@@ -424,6 +475,32 @@ description: 初始化项目配置、墨刀连接、冒烟配置、组件映射�
 📋 已将复用规则写入 .claude/prompts/api-doc-generator.md
 ```
 
+### 5.2 提交/版本规范同步（按 docs/ 检测生成，与 admin/d2c 模式无关）
+
+> 团队权威规范通常维护在仓库 `docs/`（面向人，且与 `commitlint.config.cjs` 等工程文件逐字对应）。lg-init 将其同步为 `.claude/prompts/` 下的 AI 注入版，使 `/lg-code`、辅助提交、发版操作时自动遵循。
+
+**检测与同步规则：**
+
+| 源文件（`docs/`） | 同步目标（`.claude/prompts/`） | 注入时机 |
+|-------------------|-------------------------------|---------|
+| `commit-standard.md`（type/scope 枚举、header 限制、钩子机制） | `commit-standard.md` | 生成 commit message、拆分/整理提交、执行提交操作 |
+| `version-standard.md`（分支模型、SemVer 推导、发版 SOP、CHANGELOG） | `version-standard.md` | 分支/MR 操作、版本号与 tag、`pnpm release*` 发版 |
+
+1. **源存在** → 同步生成：文件头部加注入头（声明 docs 为唯一权威源 + 同步日期 + 手改会被覆盖），正文与 docs **逐字一致**，禁止删减或改写内容
+2. **源不存在** → 跳过该项，输出 `⏭️ 未检测到 docs/xxx.md，不生成对应注入版`（不凭空创建空规范）
+3. **update 模式** → 剥离注入头后对比正文与 docs 内容：不一致 → 重新同步并输出「已同步 N 份规范文件」；一致 → 跳过
+4. **禁止反向修改**：需更新规范时改 `docs/` 版再跑 `/lg-init update`；prompts 下的副本是衍生物，不直接编辑
+
+**注入头模板（正文之前）：**
+
+```markdown
+> 🤖 **本文件为 `/lg-init` AI 注入版**，正文与 `docs/{name}.md` 逐字同步（同步于 {date}）。
+> **注入时机**：{注入时机}。
+> ⚠️ **docs 是唯一权威源**：修改规范请改 `docs/{name}.md`，再运行 `/lg-init update` 重新同步；手动修改本文件会被下次同步覆盖。
+
+---
+```
+
 ### 5.5. D2C 开发规范（--mode d2c 时执行）
 
 当项目类型为 D2C 时，执行以下初始化：
@@ -439,6 +516,7 @@ description: 初始化项目配置、墨刀连接、冒烟配置、组件映射�
      - 如不存在则创建模板，提示用户填写项目特定内容
    - `.claude/prompts/d2c-restoration.md` — 还原专用规则（自动生成，无需手动填写）
    - `.claude/config/vision-style-map.d2c.json` — 样式映射表（自动从 CLAUDE.md 提取，提示用户补全）
+   - `.claude/prompts/constants-usage-standards.md` — **按目录检测**：存在 `src/constants/` 目录则生成（与 admin/d2c 模式无关）
 
 3. 检测 page-development.md 是否已存在：
    - 存在 → 跳过生成
@@ -452,6 +530,7 @@ description: 初始化项目配置、墨刀连接、冒烟配置、组件映射�
      .claude/prompts/page-development.md        ← 请手动填写项目代码规范
      .claude/prompts/d2c-restoration.md         ✅ 已自动生成
      .claude/config/vision-style-map.d2c.json  ⚠️ 已从 CLAUDE.md 提取，请检查补全
+     .claude/prompts/constants-usage-standards.md  ✅/⏭️ 检测到 src/constants/ 则生成，否则跳过
    ```
 
 ### 6. 开发环境检查
@@ -470,6 +549,9 @@ description: 初始化项目配置、墨刀连接、冒烟配置、组件映射�
   lg-config.json           ✅ (手动填写鉴权字段 + swagger_url)
   lg-smoke.json            ✅
   lg-components-map.json   ✅
+
+📐 规范关联:
+  CLAUDE.md「开发规范」章节  ✅ 已关联 {N} 份规范文件（普通文案指令同样生效）
 
 🔧 命令:
   /lg-catalog     /lg-extract     /lg-vision     /lg-analyze

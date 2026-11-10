@@ -4,7 +4,7 @@ description: 代码审查，对比需求文档和冒烟用例验证实现
 ---
 # /lg-review — Code Review
 
-全面代码审查，根据变更影响面自动选择审查深度，覆盖 15 个审查维度，自适应集成项目已有自动化工具。
+全面代码审查，根据变更影响面自动选择审查深度，覆盖 16 个审查维度，自适应集成项目已有自动化工具。
 
 ## When to Use
 
@@ -22,7 +22,7 @@ description: 代码审查，对比需求文档和冒烟用例验证实现
 | Mode | 触发条件 | 审查范围 | 适用场景 |
 |---|---|---|---|
 | ⚡ **快速审 (Quick)** | ≤3 文件变更 且 ≤50 行 diff | Error 级全维度 + 自动化检查 | 小改动 / Hotfix |
-| 📋 **完整审 (Full)** | 默认模式 | 全部 14 维度 Error + Warn + Suggest + 自动化 | 常规 PR / 迭代上线 |
+| 📋 **完整审 (Full)** | 默认模式 | 全部 16 维度 Error + Warn + Suggest + 自动化 | 常规 PR / 迭代上线 |
 | 🔬 **深度审 (Deep)** | 核心模块 / 共享组件 / 类型定义变更 / ≥20 文件变更 | 完整审 + Step 5 跨文件影响分析 + 回归风险评估 | 核心变更 / 架构调整 |
 
 **手动指定：**
@@ -242,9 +242,10 @@ except: print('{}')
 
 #### 2.4 🎨 界面渲染类异常
 
-**图片空白/加载失败：**
+**图片空白/加载失败/变形：**
 
 - `<img>` 标签是否有 `alt` 属性？ → Warn
+- `<img>` 标签对应的 CSS 是否设置了 `object-fit`（`cover` 或 `contain`）？无固定宽高的装饰图可例外 → Error
 - 图片加载失败是否有占位图/错误图（`@error` 事件处理）？ → Error
 - 用户头像等关键图片是否有默认头像兜底？ → Warn
 - 图片 URL 为空/null 时是否显示占位图而非裂图？ → Error
@@ -523,9 +524,46 @@ except: print('{}')
   - 例如：`A emit → B watch → C emit`，但 B 在 emit 时已被 v-if 卸载
   - 检查方法：追踪整个 emit 链，确认每个中间组件的挂载条件在 emit 时仍满足
 
----
+#### 15.9 Pinia Store 持久化跨页面污染 (Persisted State Cross-Contamination)
 
-## Step 4: Output Report
+**问题场景：** `persist: true` 的 Pinia Store 被多个不同页面/流程共用，Store 内部的持久化状态在 A 页面设置后，B 页面没有重新初始化便直接读取，导致读到过期数据。
+
+- **Store 函数内部是否隐式读取 `ref` 状态而非接收参数？** → Error
+  - ❌ `checkXxx(platform)` 内部读 `planData.value.added.showDays` — 调用方无法控制该值
+  - ✅ `checkXxx(platform, currentShowDays)` — 调用方显式传入，数据来源清晰
+  - 检查方法：扫描 Store 中所有 exported 函数的参数列表，若函数体内读取了非参数的 `xxx.value`，追问"这个值是谁设的？调用方是否保证它是新的？"
+- **`persist: true` 的 Store 是否被多个页面流程共用？** → Error
+  - 若 Store A 的 `planData` 被 plan-custom 写入（并持久化），又被 burst-low-fan 的某函数读取 → 检查 burst-low-fan 是否在读取前重新初始化了该值
+  - 检查方法：搜索所有调用 Store A 函数的页面，确认每个页面的 onMounted/init 中是否有对应的数据刷新逻辑
+- **校验失败后的修复是否覆盖了所有数据源？** → Error
+  - ❌ `if (error) { form.value.x = default; return }` — 只修了表单，Store 内部状态未同步，下次调用仍触发 error → **死循环**
+  - ✅ 修复所有触发 error 的数据源（form + Store 内部状态），或让校验函数改为接收参数消除对内部状态的依赖
+  - 检查方法：搜索 `if (xxxChanged) { ...; return }` 模式，核对 fix 代码覆盖了 error 检测的全部数据来源
+- **localStorage 持久化值是否可能污染新流程？** → Warn
+  - `persist: true` 意味着 localStorage 中可能存在**任意旧值**（包括已被服务端删除的枚举值、过期配置等）
+  - 检查方法：在 `loadPrepareData` / `init` 等初始化入口，确认有针对关键持久化字段的存在性校验（如 `validateShowDays`）
+- **多 Store 协作时状态是否对齐？** → Error
+  - A Store 的提交 handler 读取 B Store 的持久化状态 → 检查 B Store 在该页面流程中是否被正确初始化
+  - 检查方法：跨 Store 的状态读取处，确认读取方 Store 在写入方 Store 的数据变更后是否同步刷新
+
+#### 15.10 watch 回调中的引用类型共享与深度监听回响 (Reference Sharing & Deep-Watch Echo)
+
+**问题场景：** `watch(xxx, ..., { deep: true })` 回调把 props/store 中的**引用类型字段**（数组/对象）直接赋给本地响应式状态（如 `assetsList: newVal.assetsList`），使本地状态与监听源共享同一引用。随后任何**原地修改**（`splice` / `push` / `item.xx = `）穿透到监听源，深度 watch 触发回调 → 回调用监听源重建整个本地状态 → 未保存的编辑被覆盖、表单/缩略图整体重置。典型表现："在弹窗里删了一个素材，整个表单被重置回初始值"。基础类型（string/number/boolean）赋值是值拷贝天然隔离，问题只出在引用类型字段。
+
+- **watch 回调中，引用类型字段是否做了深拷贝（`cloneDeep(newVal.xxx)`）而非直接赋值？** → Error
+  - 检查方法：搜索 `watch(..., { deep: true })` 回调中的 `xxx: newVal.xxx`，逐一确认数组/对象字段是否已 `cloneDeep`（或等价深拷贝）
+  - 尤其当该字段还会被子组件以 `v-model` 绑定并增删改时，必须深拷贝，否则隔离失效
+- **被监听源中的引用字段，是否存在"原地修改"路径？** → Error
+  - 检查方法：沿绑定链追踪（prop → 本地 formState → 子组件 v-model → 删除/上传/排序处理器），确认是否有 `splice` / `push` / 直接改项属性
+  - 只有"**共享引用 + 原地修改**"组合才会穿透；若下游全部走"整体替换新数组"则不会误触发
+- **子组件对列表的删除/排序是否用不可变更新（`filter` / concat / 展开新数组）代替 `splice` 原地修改作为双保险？** → Warn
+  - 即使 watch 回调未做深拷贝，只要下游只替换不原地改，也不会触发回响——两处修复互相独立
+- **整体赋值 `form = newVal`（共享整个对象）时，弹窗内未保存的增删改会直接污染父级/详情源数据，且无法回滚** → Warn
+  - 如"详情数据对象"与"弹窗表单"共用同一数组（`modifyContent.assetsList = taskDetail.auditAssetList`）时，取消保存也会残留删除结果，需等重新拉接口恢复
+  - 无保存动作即改源数据 ≈ 无回滚的乐观更新，必须显式设计数据流（拷贝 or 事件闭环）
+- **深拷贝手段取舍：`JSON.parse(JSON.stringify())` 丢失 `undefined`/函数/循环引用；字段含特殊值时优先 `lodash.cloneDeep`** → Warn
+  - 接口返回的简单 JSON 数据可用前者，含业务对象/可选链字段时用后者
+- **回填看板**：审查弹窗/表单"打开时从 props 回填数据"的代码时，必查回填是否含深拷贝；`watch` 是否 `deep: true` 且回调是否重建整个 formState——两者相遇即高危信号
 
 ### 报告结构
 

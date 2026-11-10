@@ -7,13 +7,22 @@ description: 从 Swagger 文档生成前端 API 定义代码，遵循项目规�
 
 基于 Swagger/OpenAPI 后端接口文档，生成前端 API 模块代码。
 
+## 🔴 Swagger 数据获取规则（MANDATORY）
+
+> **禁止使用任何缓存的 Swagger 数据。每次必须从 API 实时拉取。**
+
+- 禁止 Read 之前 curl 落盘的 Swagger 文件
+- 同一会话中刚拉过也必须重新 curl
+- curl 结果 pipe 给 python3 直接解析，禁止落盘后再 Read
+- 原因：后端接口随时变更，缓存 = 过时 = 改错
+
 ## 前置检查（MANDATORY）
 
 编码前必须 Read 以下文件：
 
 | 文件 | 用途 | 必须 |
 |------|------|------|
-| `.claude/prompts/api-generator-from-swagger.md` | 完整 Swagger → API 生成规范（6步流程） | ✅ |
+| `.claude/prompts/api-doc-generator.md` | 完整 Swagger → API 生成规范（6步流程） | ✅ |
 | `.claude/prompts/constants-usage-standards.md` | 常量注册/引用规范（与API配套） | ✅ |
 | `src/lib/axios.js` | 请求封装（getRequest/postRequest/postEncryptRequest） | ✅ |
 | `src/api/` | 现有 API 模块结构和命名规范 | ✅ |
@@ -147,7 +156,7 @@ enums:  8 条目（含 1 组 aliases: DmsPlatformEnum → PublishPlatformEnum）
 
 ## 流程
 
-按照 `.claude/prompts/api-generator-from-swagger.md` 的 6 步流程执行：
+按照 `.claude/prompts/api-doc-generator.md` 的 6 步流程执行：
 
 1. Fetch + 解析 Swagger 文档
 2. 提取接口，**按 URL 路径前缀 `/xx/*` 分组**（非 Tag）

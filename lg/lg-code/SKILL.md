@@ -13,7 +13,7 @@ Generate production Vue 3 code from natural language requirements. Outputs code 
 
 | 参数 | 模式 | 适用场景 | 规范文件 |
 |------|------|---------|---------|
-| `--mode admin` | 管理后台 | Ant Design Vue + SmartAdmin 项目 | vue-development-standards.md + constants-usage-standards.md + api-generator-from-swagger.md |
+| `--mode admin` | 管理后台 | Ant Design Vue + SmartAdmin 项目 | vue-development-standards.md + constants-usage-standards.md + api-doc-generator.md |
 | `--mode d2c` | 设计稿还原 | uni-app / H5 / Web 项目，需高还原度 | page-development.md + d2c-restoration.md |
 
 不传 `--mode` 时默认 `admin`（向后兼容）。D2C 模式进入独立流程，详见下方 `## D2C Mode` 章节。
@@ -61,7 +61,7 @@ The skill auto-detects the scene type and loads the corresponding template:
 |------|------|------|
 | `.claude/prompts/vue-development-standards.md` | 完整 Vue 开发规范（目录/组件/样式/校验/命名） | ✅ |
 | `.claude/prompts/constants-usage-standards.md` | 枚举常量注册/引用规范 | ✅ |
-| `.claude/prompts/api-generator-from-swagger.md` | API 模块结构规范 | ✅ |
+| `.claude/prompts/api-doc-generator.md` | API 模块结构规范 | ✅ |
 | `CLAUDE.md` | 项目技术栈、命令、架构约定 | ✅ |
 | `.claude/config/lg-components-map.json` | 已有组件清单，先复用后新建 | ✅ |
 | `src/constants/` | 已有枚举值，禁止硬编码 | ✅ |
@@ -354,7 +354,45 @@ Block--Modifier（修饰符） — 块或元素的不同状态/变体，用 -- �
 .ant-table__header__cell { } // 不要给第三方类名加 BEM
 ```
 
-#### 7.7 嵌套深度限制
+#### 7.7 图片样式强制规则（MANDATORY）
+
+**所有 `<img>` 标签必须设置 `object-fit`，防止图片因宽高比不匹配而变形：**
+
+```less
+// ✅ 正确：图片裁剪填充（适用于列表缩略图、封面图等）
+.product-list__image {
+  width: 60px;
+  height: 60px;
+  border-radius: 6px;
+  object-fit: cover;  // ← 必须！裁剪多余部分，保持比例
+}
+
+// ✅ 正确：图片完整展示（适用于头像、logo 等不能裁剪的场景）
+.user-card__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: contain;  // ← 完整展示，留白不裁剪
+}
+
+// ❌ 错误：未设置 object-fit → 图片会被拉伸/压缩变形
+.product-list__image {
+  width: 60px;
+  height: 60px;
+  border-radius: 6px;
+  // ← 缺 object-fit: cover → 非正方形原图会变形！
+}
+```
+
+| 场景 | object-fit 值 | 说明 |
+|------|-------------|------|
+| 列表缩略图、商品图、封面图、banner | `cover` | 裁剪填充，确保容器被填满 |
+| 头像、logo、图标型图片 | `contain` | 完整展示，容器内留白 |
+| 背景装饰图 | `cover` | 填充背景区域 |
+
+**禁止出现固定宽高的 `<img>` 不设置 `object-fit`**，这是最常见的图片变形原因。
+
+#### 7.8 嵌套深度限制
 
 - BEM 命名层级：**最多 Block__Element--Modifier，禁止 Block__Element__SubElement**
 - 如需更深层嵌套 → 拆分为新的独立 Block
@@ -375,7 +413,7 @@ Block--Modifier（修饰符） — 块或元素的不同状态/变体，用 -- �
 .order-table__header__title__icon { } // 4 层，禁止
 ```
 
-#### 7.8 项目中已存在的命名风格
+#### 7.9 项目中已存在的命名风格
 
 如果项目已有命名规范（如 camelCase、特定前缀约定），优先遵循项目现有风格。BEM 规则适用于**新增自定义样式**，不影响已有代码风格。
 
@@ -398,7 +436,7 @@ Self-check:            ✅ All 10 rules passed
 
 ## 代码自检（MANDATORY — 生成后逐条核对）
 
-**所有 .vue 文件生成完成后，必须逐条检查以下 10 项，全部通过才可交付：**
+**所有 .vue 文件生成完成后，必须逐条检查以下项，全部通过才可交付：**
 
 | # | 检查项 | 标准 | ❌ 错误示例 |
 |---|--------|------|------------|
@@ -416,6 +454,8 @@ Self-check:            ✅ All 10 rules passed
 | 12 | BEM CSS | 所有自定义 CSS 类名遵循 BEM（Block__Element--Modifier），无驼峰/单下划线/深层嵌套 | `.userCard` `.user_card` `.user-card__a__b__c` |
 | 13 | 表单校验去重 | `required: true` 与自定义 `validator` 拆分到不同规则项；validator 空值时 resolve 不 reject，避免同字段双提示 | `{ required: true, validator: (_, v) => !v ? reject() : resolve() }` 同对象中 required 和 validator 都 reject |
 | 14 | 校验清理 | 数据重置/重载后调用 `nextTick` + `clearValidate()`，无旧校验残留（弹窗打开、切换模板、动态 rules 变化等场景） | 切换禁用模板后仍显示"请输入价格" |
+| 15 | 图片 object-fit | 所有 `<img>` 标签对应的 CSS 类必须设置 `object-fit: cover`，防止图片被拉伸变形；头像等需完全展示的场景可用 `object-fit: contain` | `<img>` 无 `object-fit` → 图片变形 |
+| 16 | 🔴 DSL 逐项对照（D2C 专用） | **生成代码后，所有 DSL 中有精确值的 UI 元素必须逐项与 DSL 原文对照确认**——列头/列数/列宽、文案、状态标签文字+颜色、按钮文字、图标位置、间距、字号、圆角……**禁止凭 API 类型、常见模式或其他数据源推断任何 UI 属性**。DSL 是 UI 结构的唯一真相源 | 凭 `AutoDeliveryPlanDaySaveItem` 类型推断列只有"日期+任务数"，漏掉 DSL 中的"实际任务数量/实际差额/计划状态"；凭 `AutoDeliveryStrategyItem` 自创"序号"列，漏掉 DSL 中的"策略项"列 |
 
 **检查方法：**
 - 每生成一个文件，立即逐条比对
@@ -487,7 +527,6 @@ validator: (_: any, v: string) => {
 async function handleSelectTemplate(item) {
   selectedId.value = item.id;
   await loadPriceData(item.id);
-  // 切换模板后初始化校验状态，避免旧校验残留（如禁用模板仍显示"请输入价格"）
   await nextTick();
   formRef.value?.clearValidate();
 }
@@ -499,12 +538,11 @@ function open(data) {
   } else {
     formData.value = { ...defaultForm };
   }
-  // 清除上次关闭残留的校验状态
   nextTick(() => formRef.value?.clearValidate());
   visible.value = true;
 }
 
-// ✅ 正确：finally 块中清除（数据加载后统一处理）
+// ✅ 正确：finally 块中清除
 async function loadData() {
   try {
     // ... 加载数据
@@ -512,7 +550,6 @@ async function loadData() {
     console.error(e);
   } finally {
     loading.value = false;
-    // 数据回填完成后清除可能残留的旧校验状态
     await nextTick();
     formRef.value?.clearValidate();
   }
@@ -525,16 +562,62 @@ async function loadData() {
 |------|---------|---------|
 | 弹窗重新打开 | `open()` 中 `formData` 重置后 | `nextTick` → `clearValidate()` |
 | 切换模板/数据源 | 新数据加载完成后 | `nextTick` → `clearValidate()` |
-| 动态 rules 从有→无 | `rules` 条件变化（如启用→禁用） | 条件变化后 `clearValidate()` |
+| 动态 rules 从有→无 | `rules` 条件变化 | 条件变化后 `clearValidate()` |
 | 切换 Tab 后数据重载 | Tab 切换触发新数据加载 | 数据加载后 `clearValidate()` |
+
+### 9. Store 函数设计规范（Pinia persist 防污染规则）
+
+**背景：** `persist: true` 的 Store 会被持久化到 localStorage，该 Store 被多个页面/流程共用时，A 页面写入的值可能在 B 页面被意外读取。
+
+**规则 9.1 — 跨页面函数必须通过参数接收数据：**
+
+```typescript
+// ❌ 禁止：函数内部隐式读取 Store 状态
+const checkLevel = async (platform: PlatformEnum) => {
+    const showDays = planData.value.added.showDays;
+};
+
+// ✅ 正确：由调用方显式传入
+const checkLevel = async (platform: PlatformEnum, currentShowDays?: number) => {
+    const showDays = currentShowDays;
+};
+```
+
+**规则 9.2 — `persist: true` 的 Store 被新页面调用时，必须在 onMounted/init 中重新初始化关键状态：**
+
+```typescript
+async function loadPlan(planId: string) {
+    await planStore.loadPrepareData(platform);
+    planStore.initPlanDataByPrepareData();
+}
+```
+
+**规则 9.3 — 校验失败后的修复必须覆盖所有数据源：**
+
+```typescript
+// ❌ 禁止：只修了 form，Store 内部状态未同步 → 死循环
+if (changeResult.showDaysChanged) {
+    planBurstForm.value.showDays = default;
+    return;
+}
+
+// ✅ 正确：同步所有数据源
+if (changeResult.showDaysChanged) {
+    planBurstForm.value.showDays = default;
+    planData.value.added.showDays = default;
+    return;
+}
+```
 
 ## 禁止事项
 
 - ❌ 禁止用 `bash heredoc` 批量生成 .vue 文件
 - ❌ 禁止用 `sed` 批量修改 .vue 文件内容
 - ❌ 禁止用 `;` 拼接多行 JavaScript 语句
-- ❌ 禁止在同一规则对象中同时使用 `required` 和自定义 `validator` 且都为空值报错（见规则 8.1）
-- ❌ **禁止能用原子类表达的样式写在 `<style scoped>` 中**（如 `display: flex` → `class="flex"`、`font-size: 28rpx` → `class="text-28rpx"`）
+- ❌ 禁止在同一规则对象中同时使用 `required` 和自定义 `validator` 且都为空值报错
+- ❌ **禁止能用原子类表达的样式写在 `<style scoped>` 中**
+- ❌ **禁止 Store 函数内部隐式读取 ref 状态做业务判断**
+- ❌ **禁止校验失败后只修复表单不修复 Store**
 - ✅ 必须用 Write/Edit 工具逐文件生成
 
 ---
@@ -578,17 +661,10 @@ layout_zones 中有 dialog → 独立弹窗组件
 "表格内容：14px 常规" → typography_map["表格内容"] → font-size: 14px; font-weight: 400
 ```
 
-**映射规则：**
-- color_palette 中每条描述 → 逐一匹配 color_map，匹配成功的输出 CSS 变量注释
-- typography 中每条描述 → 匹配 typography_map
-- spacing 中每条描述 → 匹配 spacing_map
-- 匹配失败则使用 Ant Design 默认值
-
 ### 4. component_details → 组件配置
 
 **表格 (type=table)：**
 ```javascript
-// 从 component_details[].columns 生成 a-table 列定义
 const columns = detail.columns.map(col => ({
   title: col.title,
   dataIndex: col.dataIndex,
@@ -598,69 +674,17 @@ const columns = detail.columns.map(col => ({
 }));
 ```
 
-**弹窗 (type=dialog)：**
-- `width` → `<a-modal :width="600">`
-- `fields` → 遍历生成 `<a-form-item>`
-- `sections` → 如有多 section，用分割标题分组
-
 ### 5. annotations → 校验规则和约束
 
-**annotation_type=validation 或 constraint：**
-```javascript
-// 遍历 annotations[]，为对应字段生成 rules
-const formRules = {};
-for (const anno of annotations.filter(a => a.target && (a.annotation_type === 'validation' || a.annotation_type === 'constraint'))) {
-  const fieldName = inferFieldName(anno.target); // 推断字段名
-  formRules[fieldName] = [
-    ...(anno.rules?.required ? [{ required: true, message: `请输入${anno.target}` }] : []),
-    ...(anno.rules?.max ? [{ max: anno.rules.max, message: `最大值为${anno.rules.max}` }] : []),
-    ...(anno.rules?.maxlength ? [{ max: anno.rules.maxlength, message: `最多${anno.rules.maxlength}个字符` }] : []),
-    ...(anno.rules?.pattern ? [{ pattern: new RegExp(anno.rules.pattern), message: '格式不正确' }] : []),
-  ];
-}
-```
-
-**annotation_type=business_logic：**
-- 生成注释和条件判断逻辑
-- 如 "停用后机构不能登录" → 生成 `v-if` 或 `disabled` 逻辑
-
-**annotation_type=interaction：**
-- 补充到 interactions[] 的处理逻辑中
-
 ### 6. states → 枚举和条件渲染
-
-**生成 SmartEnum 常量：**
-```javascript
-// 从 states[].variants 生成枚举值
-// states: [{element: "认证状态", variants: [{state: "通过", color: "green"}, ...]}]
-// → 在 src/constants/ 中新建或更新对应枚举
-// → 在表格中使用 $smartEnumPlugin.getDescByValue('CERT_STATUS_ENUM', value)
-```
-
-**生成条件渲染：**
-```html
-<!-- states 中的 color 映射为 a-tag color 属性 -->
-<a-tag v-if="record.status === '通过'" color="green">通过</a-tag>
-<a-tag v-else-if="record.status === '未通过'" color="red">未通过</a-tag>
-<a-tag v-else color="orange">认证中</a-tag>
-```
 
 ## 组件开发
 # /component — Component Development
 
 Develop Vue 3 components with automatic classification, documentation generation, and component map registration.
 
-## When to Use
-
-- "Create a BaseCard component"
-- "Build a UserAvatar component for the user module"
-- "Extract this repeated pattern into a reusable component"
-
-## Pipeline
-
 ### Step 1: Check for Duplicates
-
-Search `component-map.json` and `src/components/` for existing similar components before creating a new one. If a component already covers this use case, suggest reusing or extending it.
+Search `component-map.json` and `src/components/` for existing similar components.
 
 ### Step 2: Classify the Component
 
@@ -669,249 +693,215 @@ Search `component-map.json` and `src/components/` for existing similar component
 | **Public** | `components/common/` | Global | `Base` / `App` | ✅ README.md |
 | **Business** | `components/business/{module}/` | Same module | Business abbreviation | Suggested |
 
-**Public component checklist** (at least 2 of 3):
-1. Used in ≥ 3 different pages
-2. Not dependent on business data models
-3. Pure display or generic interaction (no business rules)
-
 ### Step 3: Design the API
-
-Define before coding:
-- **Props**: Name, Type, Default, Required, Validator
-- **Emits**: Event name, Parameters
-- **Slots**: Name, Purpose, Fallback content
-- **Expose**: Methods/properties exposed to parent (if needed)
-
-```vue
-<script setup>
-const props = defineProps({
-  title: { type: String, default: '' },
-  type: { type: String, default: 'default', validator: v => ['default', 'primary', 'danger'].includes(v) },
-  loading: { type: Boolean, default: false },
-});
-
-const emit = defineEmits(['close', 'submit', 'change']);
-
-defineSlots({
-  header: 'Custom header content',
-  default: 'Main content area',
-  footer: 'Action buttons area',
-});
-</script>
-```
+Define before coding: Props, Emits, Slots, Expose
 
 ### Step 4: Implement with Mandatory States
-
-Every component must handle these edge cases:
-
-| State | Trigger | Implementation |
-|---|---|---|
-| Empty Props | Props not provided or empty | Default values + empty state slot fallback |
-| Invalid Props | Props value out of range | Validator warning + graceful degradation |
-| Loading | `loading` prop = true | Skeleton / Spin / Semi-transparent overlay |
-| Error | Data fetch failure | Error display + retry emit |
-| Empty Data | Data array is empty | a-empty + action guidance |
+Empty Props / Invalid Props / Loading / Error / Empty Data
 
 ### Step 5: Style Rules (ENFORCED)
-
-```
-✅ <style lang="less">           ← 是否 scoped 遵循项目规范（由 lg-init 检测决定）
-✅ :deep(.ant-table) { ... }     ← For style penetration (scoped 模式时)
-✅ BEM naming for all custom CSS classes  ← Block__Element--Modifier
-❌ /deep/ or >>>                  ← Deprecated
-❌ body { }, html { }, * { }     ← NO global styles in components
-❌ camelCase or snake_case in class names ← e.g. .userCard .user_card
-```
+✅ BEM naming / ✅ object-fit: cover / ❌ /deep/ or >>>
 
 ### Step 6: Generate README.md
 
-Auto-generate documentation for public components:
-
-```markdown
-# ComponentName
-
-Brief description.
-
-## Props
-| Name | Type | Default | Required | Description |
-|---|---|---|---|---|
-| title | String | '' | No | Card title |
-
-## Events
-| Name | Parameters | Description |
-|---|---|---|
-| close | - | Emitted when card is closed |
-
-## Slots
-| Name | Description |
-|---|---|
-| header | Custom header |
-| default | Main content |
-
-## Usage
-\`\`\`vue
-<ComponentName type="primary" @close="handleClose">
-  Content
-</ComponentName>
-\`\`\`
-```
-
 ### Step 7: Register in Component Map
-
-Add entry to `.claude/config/component-map.json`:
-
-```json
-{
-  "CustomComponent/Primary": {
-    "codeComponent": "BaseCard",
-    "codePath": "@/components/common/BaseCard.vue",
-    "lastVerified": "2026-06-09"
-  }
-}
-```
-
-If a Figma component mapping exists, link `figmaComponentId`.
-
-## Output Format
-
-```
-✅ /component Complete
-
-Type: Public Component
-Generated:
-  📄 src/components/common/BaseCard.vue (85 lines)
-  📄 src/components/common/BaseCard.README.md
-  📋 component-map.json (+1 entry)
-
-States: Empty Props ✅, Invalid Props ✅, Loading ✅, Error ✅, Empty Data ✅
-```
 
 ## D2C Mode
 
 当 `--mode d2c` 时走此流程。与 admin 模式完全独立，不共享规范文件和自检规则。
 
-### Phase 1: 识图提取
+### Phase 1: 数据提取（实时 MCP 主通道 + 识图回退）
 
-1. 检查 MasterGo MCP 是否可用（`mcp__getDesignSections` 工具是否存在且可调用）
-   - 可用 → 调用 MasterGo DSL 工作流（预留，当前跳过）
-   - 不可用 → 走 lg-vision 识图
-2. 调用 lg-vision 识图，传递增强精度参数：
-   ```bash
-   echo '{"version":"X.X.X","screenshots":["..."],"pageMapping":{...},"mode":"d2c"}' | node ~/.claude/skills/lg-scripts/vision.mjs
-   ```
-   注意 `"mode":"d2c"` 字段，触发 vision.mjs 的精度增强 prompt。
-3. 读取 vision 输出 JSON，提取：
-   - `layout_zones[]` → 整体布局方向
-   - `component_tree{}` → 组件嵌套层级
-   - `visual_style{}` → 通过 vision-style-map.d2c.json 映射样式值
-   - `component_details[]` → 表格列/表单字段配置
-   - `annotations[]` → 表单校验规则
-   - `states[]` → 条件渲染
-   - `text_content[]` → 页面文案
+1. **检查 MasterGo MCP 可用性**
+
+2. **从 page-mapping.json 定位 design**
+
+3. **全量实时获取 DSL（无需本地缓存，MANDATORY）**：
+   - 调用 `mcp__getDesignSections`（不带 sectionIndex）→ section 列表 + rootMetadata，记录 `totalSections` 与每个 section 的 `{sectionIndex, name, type, textPreview, containerId, nodeCount}`，并记录 `rootMetadata.width` / `height`（设计稿画布宽度 → 像素换算基数）
+   - **全量取数（🔴 MANDATORY）**：对 section 列表中**每一个** section 依次调用 `mcp__getDesignSections(sectionIndex=N)`。**页头/侧栏/页脚/弹层均属于 payload，不可跳过**
+   - **显式豁免（仅以下类型，且编码前必须输出豁免清单）**：
+     - `scrollbar` / 滚动条
+     - 分隔线 / 分割线（divider）
+     - 纯背景装饰层（判定：无文本、无图片 fill、无 PATH 节点，且 name 含"背景/装饰/背景图"）
+     - 豁免项必须记录 `{sectionIndex, name, 原因}`，不得静默
+   - 🔴 **取数门禁（HARD GATE — 缺 section 禁止编码）**：编码前比对「已取 DSL 的 section 数 `N_fetched`」vs「`totalSections - 豁免数`」；`N_fetched < 应取数` → 输出 ⚠️ 缺失清单 → 补取或显式豁免，**禁止带缺直接编码**
+   - 🔴 **表格 section 必须取 DSL**：表格列头/列宽/列数/数据样例/状态标签样式 只在详细 DSL 中有。任何含表格的区域 → 必须先取表头 section + 至少一行数据 section 的 DSL，才能写列定义代码。凭 API 类型推断列结构必出错
+
+4. **DSL 精确值直接用于代码生成**
+
+5. **图片按需引用（经 lg-dsl `image-manifest.json` 寻址，🔴 禁止直接 curl 远端 URL）**：
+   - 读取 `.lg-docs/dsl/{version}/{pageId}/image-manifest.json`（lg-dsl S2 产出，契约见 `docs/image-manifest-contract.md`）
+   - 编码遇 DSL 节点 `fill → url` 时：
+     - **命中 `images[]`** → 拷贝 `{pageId}/images/{semanticName}` 到项目 `src/assets/{designName}/{semanticName}`（一次性）→ `<img>` 引用 `@/assets/{designName}/{semanticName}`（与 manifest `localPath` 一一对应）
+     - **命中 `failedAssets[]`** → 编码前输出告警清单，按 `role/所属节点` 决定 占位 or 人工补图，**禁止静默**
+     - **未命中任何条目** → 报错停止（fidelity 门应已拦截，此处兜底）
+     - **业务语义映射（两阶段命名·阶段 2，🔴）**：编码时按需求还原纪律命名的组件/区块/类名，记录每张图 `fill url → 所在组件/区块业务名`（如 `topbar-avatar`、`model-thumb`；DSL 结构名如 `矩形 46` 只作占位，不作最终名）到 `.lg-docs/dsl/{version}/{pageId}/semantic-name-map.json`（`{ "<image url>": "<业务语义名>" }`）
+     - **语义化回写先行（🔴 MANDATORY）**：assets 拷贝与 `<img>` src 落定**之前**，组装 `_input/semantic-rename.json = {"manifestFile":"{pageId}/image-manifest.json","nameMapFile":"{pageId}/semantic-name-map.json"}` 并运行 `node ~/.claude/skills/lg-scripts/semantic-rename.mjs --input <该文件>`；随后拷贝 `images/{最终 semanticName}` 到项目 `src/assets/`、`<img>` 引用 `@/assets/{最终语义名}`（与回写后 manifest 一致，杜绝"先结构名后业务名"两套名字分叉）
+
+6. **（回退通道）lg-vision 识图**
 
 ### Phase 2: 代码生成
 
-1. **加载 D2C 规范文件（MANDATORY）**：
+1. **加载 D2C 规范文件 + 需求数据 + 结构产物（MANDATORY）**：
+   - 读取 `.lg-docs/dsl/{version}/{pageId}/component-blueprint.json`（lg-dsl S3 产出，契约见 `docs/blueprint-contract.md`）
+   - **读取 blueprint.codeplans[] / featureGroups[]**（复杂页专用，契约见 `docs/2026-09-01-lg-code-codeplan-complex-page-design.md`）：
+     - `complex` 页 → 按 codeplan.layers **逐层生成**（executionOrder:核心生成 store/utils/hook/component/layout/page;constants/api 为 associate 只校验引用）
+     - **featureGroup 成员页** → 先处理组共享物(`build-once`,首个成员建,其余成员 `mode:reuse` + `origin:"fg_{groupId}"`);非共享层常规生成
+     - `codeplan.layers[]` 全为 reuse/associate/inherit(无生成类)→ **跳过 CodeGen,直接 Phase3.5**,过即完成
+   - `simple` → 单 index.vue（现有流程，退回 page-mapping outputs）
 
-| 文件 | 用途 | 必须 |
-|------|------|------|
-| `.claude/prompts/page-development.md` | 项目页面开发规范（技术栈/组件/代码模式） | ✅ |
-| `.claude/prompts/d2c-restoration.md` | 还原专用规则（样式还原/质量门禁/禁止事项） | ✅ |
-| `.claude/config/vision-style-map.d2c.json` | 样式描述→项目精确值映射 | ✅ |
-| `CLAUDE.md` | 项目技术栈、目录结构 | ✅ |
-| `.claude/config/lg-components-map.json` | 项目组件清单 | ✅ |
-| `src/api/` | API 模块结构 | ✅ |
+2. **需求数据注入（MANDATORY）**
 
-2. **场景检测**（与 admin 共享检测逻辑）：
-   - list/table/search → 列表页
-   - detail/info/view → 详情页
-   - form/create/edit → 表单页
-   - modal/dialog/drawer → 弹窗
+3. **HARD GATE：需求/还原实现清单（MANDATORY — 未生成禁止写代码）**
 
-3. **按项目框架生成代码**：
-   - uni-app: Page 组件包裹 + MeScroll 列表 + BEM 命名 + rpx 单位
-   - Vue3 H5: Composition API + scoped SCSS/Less + BEM 命名 + rem/vw 单位
-   - 纯 Web: HTML + CSS + BEM 命名
-   - **所有框架的自定义 CSS/LESS/SCSS 类名统一使用 BEM 命名规范**
+   实现目标 output 前，必须先生成《需求/还原实现清单》，逐条列出（标注来源）：
 
-4. **代码格式强制规则**：
-   - 禁止用 `;` 拼接多语句到一行
-   - 每个 import/const/let/function 独立一行
-   - 模板属性多时换行对齐
-   - **所有自定义 CSS 类名必须使用 BEM 命名（详见 Core Rules §7）**
+   | 项 | 内容 | 来源 |
+   |----|------|------|
+   | 交互方式 | hover/click/弹窗/下拉菜单 | `vision.interactions[]` |
+   | 提示文案 | 校验 message/空态/确认弹窗 | `vision.text_content[]` |
+   | 🔴 DSL 精确值对照 | 列头/列宽/列数、按钮文字、状态标签文字+颜色、图标、间距、字号、圆角…所有 DSL 中有精确值的 UI 属性逐一对照 | DSL 各 section 原文 |
+   | 🖌️ 单位换算 | 每个 DSL 物理像素值 → 项目单位（rpx/rem/px）的换算结果 | `d2c-restoration.md` 换算规则（按设计稿画布宽） |
+   | 校验规则 | required/max/pattern/枚举 | `annotations[].rules` |
+   | 状态变体 | 未提交/巡查中/已完成… | `vision.states[]` |
+   | 降级标注 | coverage=false 的源 | `designRequirement.coverage` |
+   | 图片引用 | 每张图的 manifest localPath / failedAssets 处理结论 | `image-manifest.json` |
+   | 组件归属 | 每个 output 对应的 blueprint zone/overlay/repeatable | `component-blueprint.json` |
+   | 逻辑归属 | 每个逻辑块 → store/hook/utils/associate + mode(reuse/extend-base/compose/new),理由可回溯 | `codeplans[].layers[].reason` |
 
-### Phase 3: 像素对比校验
+### 🔴 D2C 编码铁律：逐 section 编码，逐个击破（MANDATORY）
 
-#### 3.1 渲染截图
+**DSL 原文是唯一真相源。不提取、不摘要、不凭记忆。编码时 DSL 必须在上下文窗口中。**
 
-```bash
-node ~/.claude/skills/lg-scripts/d2c-render.mjs <generated-html> .lg-docs/diff/<page-name>-render.png
+每个 UI 区域按以下循环执行，一个 section 完成才进入下一个：
+
+```
+┌─ 循环开始 ─────────────────────────────────────┐
+│ 1. Read DSL section 原文（mcp__getDesignSections）│
+│ 2. 对着这一段 DSL，写对应的代码                     │
+│ 3. 输出验证行：S{N} {元素} → code: {实际值} ✅/❌  │
+│ 4. ✅ → 下一个 section  │  ❌ → 修正后回到步骤 3   │
+└─────────────────────────────────────────────────┘
 ```
 
-备选：如果 d2c-render.mjs 因缺少依赖无法运行，手动在浏览器打开生成的 HTML 并截图保存到相同路径。
-
-#### 3.2 像素对比
-
-```bash
-node ~/.claude/skills/lg-scripts/d2c-compare.mjs \
-  .lg-docs/diff/<page-name>-render.png \
-  <design-original-png> \
-  .lg-docs/diff/<page-name>-diff.png
+**验证行示例：**
+```
+S78 列头"关键要素" #999 14px → code: { title: '关键要素' } ✅
+S79 关键要素 input 160×32 border #DDD → code: a-input ✅
+S84 去关联 plus icon + "去关联" #1890FF → code: PlusCircleOutlined + 去关联 ✅
+S87 新增 80×28 bg rgba(24,144,255,0.1) border-radius 4px → code: 80×28 ✅
+S88 注 #FFA64D → code: #ffa64d ✅
 ```
 
-解析输出 JSON：
-- `passed: true` + `pixelMatch.matchPercent >= 97` → 进入 Phase 4 输出
-- `passed: false` 或 `matchPercent < 97` → 进入自动修复
+**禁止：**
+- ❌ 一次 Read 多个 section 然后凭记忆批量写代码
+- ❌ 代码写完再回头找 DSL 对照（事后检查 = 漏检）
+- ❌ 创建中间提取表/摘要替代 DSL 原文
+- ❌ 用 API 类型、常见模式或任何非 DSL 数据源推断 UI 属性
 
-#### 3.3 自动修复
+全部 section 编码 + 逐 section 验证完成后，输出汇总：
 
-读取 `diffHeatmap` 差异热力图，使用 Claude 视觉能力分析：
-1. 辨别差异区域对应的 UI 元素
-2. 检查 `d2c-compare.mjs` 输出的 `detailChecks` 各指标
-3. 调整对应 CSS 样式参数
-4. 用 Edit 工具修改代码 → 返回 Step 3.1 重新渲染
-5. 计数器 +1，超过 3 轮 → 终止循环 → 输出差异报告
-
-#### 3.4 依赖检测
-
-在首次进入 Phase 3 时检测：
-```bash
-node -e "import('pixelmatch').catch(()=>process.exit(1))" 2>/dev/null && echo "pixelmatch: ✅" || echo "pixelmatch: ❌ npm install pixelmatch pngjs"
-node -e "import('puppeteer').catch(()=>process.exit(1))" 2>/dev/null && echo "puppeteer: ✅" || echo "puppeteer: ❌ npm install puppeteer"
+```
+🔍 逐 section 对照完成: {组件名}
+S{N}-S{M}: {通过数}/{总数} ✅
 ```
 
-缺少依赖时提示安装，Phase 3 降级为手动验收模式。
+4. **主题 token 映射**
+
+5. **场景检测**
+
+6. **按项目框架生成代码**
+
+7. **代码格式强制规则**
+
+### Phase 3: 像素对比校验（L4 视觉门）
+
+**目标**：S4 完成后、S5 注入行为前，用「渲染结果 vs 设计稿整页截图」得出客观还原度 %。这是"百分百还原"的**唯一客观量化裁决**（L1–L3 只能证明输入完整、引用闭合）。
+
+**前置（缺任一则按下方"禁止静默跳过"处理）**：
+- 设计稿整页截图 `.lg-docs/dsl/{version}/{pageId}/design.png`（用户在 MasterGo 导出后放入；d2c-compare 前置检查缺失则阻断）
+- 渲染依赖 `puppeteer`（`npm i -g puppeteer`，或项目内 `npm i -D puppeteer`；d2c-render 会在缺失时探测 puppeteer-core + 系统 Chrome 并给出安装指引）
+- 对比依赖 `pixelmatch` + `pngjs`
+- 目标页可打开：纯 HTML 用文件路径；Vue 工程先起 dev server 用 URL
+
+**执行**：
+```bash
+# 1) 渲染目标页（HTML 文件 或 dev server URL）
+node ~/.claude/skills/lg-scripts/d2c-render.mjs  <page.html|http://localhost:5173/xxx>  /tmp/page.png
+# 2) 像素对比（exit 0=通过 / 1=未过，可直接做门禁）
+node ~/.claude/skills/lg-scripts/d2c-compare.mjs /tmp/page.png .lg-docs/dsl/{version}/{pageId}/design.png /tmp/diff.png
+```
+
+**判定与纪律**：
+
+| 还原度（match%） | 判定 | 动作 |
+|---|---|---|
+| **≥ 97%** | ✅ 通过 | 进入 S5 |
+| **90% ~ <97%** | ⚠️ 人工裁决 | 打开 diff.png 定位偏差，逐处确认后可放行 |
+| **< 90%** | ❌ 回修 | 回到 Phase 2 对应 section 修正，**禁止进入 S5** |
+
+**禁止**：
+- ❌ 无 `design.png` 时静默跳过——必须输出 `⚠️ 未提供 design.png，跳过 L4 视觉门` 并以人工走查代替
+- ❌ 截图缺失/渲染失败时静默跳过
+- ❌ 匹配度 ≥90% 区间内存在结构错位（整块缺失/错位/变形）仍放行——用 diff.png 确认偏差是"像素级"而非"结构级"
+
+### Phase 3.5: 交付前最终核对（D2C MANDATORY）
+
+编码过程已逐 section 验证，此处做汇总确认：
+
+```
+🔍 逐 section 对照汇总: {组件名}
+DSL sections: S{N}-S{M}
+编码中验证: {N}/{N} ✅
+遗留 ❌: 0
+交付 ✅
+```
+
+**图片引用核对（🔴 MANDATORY）：**
+- **两阶段命名核对**：semantic-rename 应在 Phase2 assets 落盘 **前**已回写；若发现 `semantic-name-map.json` 存在但未回写 → 先补执行 rename 再核对，禁止带旧结构名交付
+- 扫描本次生成的 `<img>`：`src` 必须为 `@/assets/{designName}/{语义名}` 且语义名 ∈ `manifest.images[].semanticName`，且**项目 `assets/` 副本文件名与 `manifest.images[].semanticName` 一一对应**（business 名为准，杜绝结构名残留）
+- 出现远端 `https://` 图片 URL → 未走 manifest → 修正后重交付
+- `failedAssets` 处理结论齐备（每条有 占位/补图 结论），0 悬空
+
+**blueprint 覆盖率核对（complex 专用，🔴 MANDATORY）：**
+- `blueprint.outputs` 中每个 `file` 均已生成
+- `index.vue` 已按 `slots` 组装 shell/overlay/repeatable 组件，0 遗漏
+
+**codeplan 核对（complex/featureGroup 专用，🔴 MANDATORY）：**
+- **闭合**:`layers` 中 `new/extend-base/compose/page` 文件均已生成;`reuse/associate/inherit` 路径已存在;0 悬空
+- **薄壳核对(软检查,白名单 §7.3)**:index.vue 只含 template/简单 computed/静态常量/事件透传;含业务校验/请求/轮询/复杂状态 → **warning**(人工 override 可放行,不自动回写)
+- **layout 与 build-once**:`mode:inherit` 时不生成 layout 组件;组内共享物仅首建一次(origin:fg_* 一致性核对)
+- **confirmRequired 清单**:输出全部待确认项(产物注释 `<!-- @TODO 人工确认 -->` 已标注)
+- **结构化结果**:校验输出 `warnings[]/errors[]`(含 code/path/reason),供上层消费与日志建模
+
+**取数完整性核对（🔴 MANDATORY）：**
+- 已取 DSL section 数 = `totalSections − 豁免数`，且缺失清单为空 → ✅
+- 任一缺项未补取、未豁免 → 禁止交付（回到 Phase 1 补取）
+
+**占位符残留扫描（🔴 MANDATORY — 任一命中即禁止交付）：**
+
+对本次生成（或修改）的每个文件运行扫描，确认 `applyDesign` 注入已完成：
+
+```bash
+echo '{"paths":["./src/views/{pageDir}/"]}' | node ~/.claude/skills/lg-scripts/dsl-placeholder-check.mjs
+```
+
+- 命中 `@@SVG:` 或 `T{n}|{nodeId}` 残留 → 注入未完成 → 补 `applyDesign` 后重新扫描
+- 全部文件无残留 → 输出 `✅ 占位符扫描通过`
+
+存在 ❌ → 回到对应 section 修正，不得交付。
 
 ### Phase 4: 输出
 
-输出格式：
-```
-✅ /lg-code --mode d2c 完成
-
-📐 页面: {page-name}
-📱 框架: {framework}
-📄 生成文件:
-   {file-path}  ({lines}行)
-
-🎨 还原度报告:
-┌────────────┬─────────┬──────────┐
-│ 指标        │ 设计稿   │ 实际值    │ 状态  │
-├────────────┼─────────┼──────────┤
-│ ...         │ ...      │ ...       │ ✅/⚠️  │
-└────────────┴─────────┴──────────┘
-综合还原度: {percent}%
-迭代次数: {rounds} 轮
-差异热力图: .lg-docs/diff/{page-name}.png
-```
+### D2C 组件使用与禁止事项
 
 ### D2C 禁止事项
-
-- ❌ 不允许使用管理后台组件库（SearchCard/TableCard/PageContainer 等）
-- ❌ 不允许简化设计稿的视觉效果
-- ❌ 不允许在未标注差异的情况下修改样式参数
-- ❌ 不允许混用跨框架特定语法
-- ❌ 不允许使用非 BEM 命名的 CSS 类名（如驼峰 `.userCard`、单下划线 `.user_card`）
-- ❌ 禁止用 bash heredoc 批量生成 .vue 文件
-- ❌ 禁止用 sed 批量修改 .vue 文件
-- ❌ 禁止用 `;` 拼接多行 JavaScript 语句
-- ✅ 必须用 Write/Edit 工具逐文件生成
+- ❌ 禁止用"常见 UI 模式"推断设计稿样式
+- ❌ 禁止自创提示文案
+- ❌ 禁止臆断交互
+- ❌ 禁止主观简化：DSL 中存在的样式字段必须逐字段还原
+- ❌ 禁止跳过 section：除「显式豁免清单」列明项外，页头/侧栏/页脚/弹层等**全部 section 必须取数还原**
+- ❌ 禁止交付含占位符残留的代码（`@@SVG:xxx@@` / `T{n}|{nodeId}`）：必须经 `applyDesign` 注入完整，并通过 `dsl-placeholder-check.mjs` 扫描
+- ❌ 禁止直接落 DSL 物理像素值而不做项目单位换算（按 `d2c-restoration.md` 换算规则转 rpx/rem，0.5 边界按规则取整）
+- ❌ 禁止在代码里直接引用 DSL 远端图片 URL；所有 `<img>` 必须经 `image-manifest.json` localPath 落盘引用
+- ❌ 禁止忽略 `manifest.failedAssets`（静默缺图）；每条失败必须给出 占位/补图 结论
