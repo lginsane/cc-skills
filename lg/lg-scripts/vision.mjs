@@ -225,6 +225,89 @@ function buildPrompt(pageIndex, totalPages, mode = 'design') {
   return prompt;
 }
 
+function buildFlowchartPrompt(pageIndex, totalPages) {
+  const pageHint = totalPages > 1 ? `\n注意：这是第 ${pageIndex + 1}/${totalPages} 张截图，可能是完整流程图的一个分段。` : '';
+  return `你是产品需求文档分析专家。这张截图是产品流程图/业务流程图。${pageHint}
+
+## 提取要求
+
+### 1. 流程图基本信息
+- 流程名称 (name)：流程图标题
+- 功能描述 (description)：该流程解决的问题与适用场景
+
+### 2. 流程节点 (flow_nodes)
+提取流程中的每个节点/步骤：
+- id: 节点唯一标识（如 N1/N2/N3）
+- label: 节点名称（一字不动提取）
+- type: 节点类型（start/end/action/decision/branch/subprocess）
+- description: 该节点动作或状态的业务含义
+
+### 3. 流程连线与分支 (flow_edges)
+提取节点之间的流转关系：
+- from: 起始节点 id
+- to: 目标节点 id
+- label: 连线上标注的条件/说明文字（如有）
+- condition: 分支判断条件（decision 节点的各个出口）
+
+### 4. 泳道/分区 (lanes)
+如流程按角色或系统分区（泳道图），提取各分区：
+- lane: 分区名称（如"用户"、"商家端"、"系统"）
+- nodes: 该分区包含的节点 id 列表
+
+### 5. 业务规则 (business_rules)
+从流程图中的标注、注释、说明文字提取业务规则：
+- rule: 规则描述
+- source_node: 该规则关联的节点 id
+
+### 6. 状态机 (state_transitions)
+如流程描述状态流转（如"待审核→审核中→已通过"），提取状态转移：
+- from_state: 起始状态
+- to_state: 目标状态
+- trigger: 触发条件/操作
+
+### 7. 交互与说明 (interactions)
+流程中标注的补充说明、注意点、例外情况。
+
+### 8. 标注关联 (annotations)
+如流程图中有数字序号标注、红色圆圈标注、要点补充说明，提取：
+- marker: 标注标记（如 "⑥"、"红色圆圈①"）
+- marker_type: "数字序号标注" / "红色圆圈标注" / "要点补充说明"
+- target: 标注指向的节点/元素
+- annotation_type: "business_logic" / "constraint" / "display" / "interaction"
+- content: 标注的完整描述文字（一字不动提取）
+- rules: 推断出的规则键值对，无法推断填 null
+
+### 9. 文案内容 (text_content)
+流程图中所有可见文字（节点名、连线标注、说明文字、图例）。
+
+## 输出格式
+\`\`\`json
+{
+  "version": "版本号或null",
+  "pages": [{
+    "name": "流程名称",
+    "description": "功能描述",
+    "flow_nodes": [],
+    "flow_edges": [],
+    "lanes": [],
+    "business_rules": [],
+    "state_transitions": [],
+    "interactions": [],
+    "annotations": [],
+    "text_content": [],
+    "layout_zones": [],
+    "visual_style": {"color_palette": [], "typography": [], "spacing": [], "border": []}
+  }],
+  "confidence": "high/medium/low"
+}
+\`\`\`
+
+## 规则
+- 节点 id 使用 N1/N2/N3... 顺序编号，保持与视觉阅读顺序一致
+- 分支条件的每个出口都要提取为一条 flow_edges
+- 如果信息不可见，字段填 null 或空数组`;
+}
+
 function buildModalPrompt(pageIndex, totalPages) {
   return `你是产品需求文档分析专家。这张截图是弹窗/模态框页面。
 
