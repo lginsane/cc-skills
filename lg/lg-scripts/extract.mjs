@@ -207,12 +207,20 @@ async function extractCurrentPage(page, pageInfo, outputDir) {
     c.images.some(img => img.displayWidth >= c.offsetWidth * 0.8 && img.src && !img.src.startsWith('data:'))
   );
 
-  if (hasQualifyingImages) {
+  const forceMode = pageInfo.forceMode || null;
+  const effectiveMode = forceMode === 'image' ? 'image'
+    : forceMode === 'screenshot' ? 'screenshot'
+    : hasQualifyingImages ? 'image'
+    : 'screenshot';
+
+  if (effectiveMode === 'image') {
     // --- 图片模式：直接下载 ---
     for (let ci = 0; ci < totalCanvases; ci++) {
       const canvas = canvasAnalysis[ci];
+      // forceMode=image 时放宽阈值，支持横排多图场景
+      const minRatio = forceMode === 'image' ? 0.15 : 0.8;
       const qualifying = canvas.images.filter(
-        img => img.displayWidth >= canvas.offsetWidth * 0.8 && img.src && !img.src.startsWith('data:')
+        img => img.displayWidth >= canvas.offsetWidth * minRatio && img.src && !img.src.startsWith('data:')
       );
       for (let ii = 0; ii < qualifying.length; ii++) {
         try {
@@ -240,7 +248,7 @@ async function extractCurrentPage(page, pageInfo, outputDir) {
         }
       }
     }
-  } else {
+  } else if (effectiveMode === 'screenshot') {
     // --- Widget模式：演示模式截图 ---
     await enterCleanView(page);
 
