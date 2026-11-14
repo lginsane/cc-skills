@@ -1,0 +1,21 @@
+{
+  "name": "deck-craft",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "ingest": "node scripts/ingest.mjs",
+    "validate": "node scripts/validate.mjs",
+    "build": "node scripts/build_deck.mjs",
+    "check": "node scripts/check_deck.mjs",
+    "score": "node scripts/score_deck.mjs"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "mammoth": "^1.8.0",
+    "pdf-parse": "^1.1.1",
+    "pptxgenjs": "^3.12.0",
+    "xlsx": "^0.18.5",
+    "yaml": "^2.5.0"
+  }
+}
